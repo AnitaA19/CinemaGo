@@ -1,5 +1,8 @@
 
+using CinemaGo.Domain.Intefraces;
 using CinemaGo.Infrastructure.Data;
+using CinemaGo.Infrastructure.Repositories;
+using CinemaGo.Infrastructure.UnitOfWork;
 using Microsoft.EntityFrameworkCore;
 
 namespace Cinema
@@ -17,6 +20,16 @@ namespace Cinema
                 ));
 
             // Add services to the container.
+            builder.Services.AddScoped<IBookingRepository, BookingRepository>();
+            builder.Services.AddScoped<IGenreRepository, GenreRepository>();
+            builder.Services.AddScoped<IHallRepository, HallRepository>();
+            builder.Services.AddScoped<IMovieRepository, MovieRepository>();
+            builder.Services.AddScoped<ISeatRepository, SeatRepository>();
+            builder.Services.AddScoped<ISessionRepository, SessionRepository>();
+            builder.Services.AddScoped<ITicketRepository, TicketRepository>();
+            builder.Services.AddScoped<IUserRepository, UserRepository>();
+            builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+
             builder.Services.AddControllers();
             builder.Services.AddOpenApi();
 
