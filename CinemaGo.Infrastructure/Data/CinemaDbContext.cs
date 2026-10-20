@@ -31,6 +31,11 @@ public class CinemaDbContext : DbContext
             entity.Property(m => m.AgeRating).IsRequired();
             entity.HasCheckConstraint("CK_Movies_DurationMinutes", "[DurationMinutes] > 0");
             entity.HasCheckConstraint("CK_Movies_AgeRating", "[AgeRating] >= 0 AND [AgeRating] <= 21");
+
+            entity.HasMany(m => m.Sessions)
+                .WithOne(s => s.Movie)
+                .HasForeignKey(s => s.MovieId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<Genre>(entity =>
@@ -66,7 +71,7 @@ public class CinemaDbContext : DbContext
             entity.HasMany(h => h.Seats)
                 .WithOne(s => s.Hall)
                 .HasForeignKey(s => s.HallId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.Restrict);
 
             entity.HasMany(h => h.Sessions)
                 .WithOne(s => s.Hall)
@@ -83,6 +88,11 @@ public class CinemaDbContext : DbContext
             entity.HasIndex(s => new { s.HallId, s.RowNumber, s.SeatNumber }).IsUnique();
             entity.HasCheckConstraint("CK_Seats_RowNumber", "[RowNumber] > 0");
             entity.HasCheckConstraint("CK_Seats_SeatNumber", "[SeatNumber] > 0");
+
+            entity.HasMany(s => s.Bookings)
+                .WithOne(b => b.Seat)
+                .HasForeignKey(b => b.SeatId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<Session>(entity =>
@@ -92,23 +102,14 @@ public class CinemaDbContext : DbContext
             entity.Property(s => s.StandardPrice).HasPrecision(18, 2).IsRequired();
             entity.Property(s => s.VipPrice).HasPrecision(18, 2).IsRequired();
             entity.Property(s => s.Status).IsRequired();
+            entity.HasIndex(s => new { s.HallId, s.StartsAt });
             entity.HasCheckConstraint("CK_Sessions_StandardPrice", "[StandardPrice] >= 0");
             entity.HasCheckConstraint("CK_Sessions_VipPrice", "[VipPrice] >= [StandardPrice]");
-
-            entity.HasOne(s => s.Movie)
-                .WithMany(m => m.Sessions)
-                .HasForeignKey(s => s.MovieId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasOne(s => s.Hall)
-                .WithMany(h => h.Sessions)
-                .HasForeignKey(s => s.HallId)
-                .OnDelete(DeleteBehavior.Restrict);
 
             entity.HasMany(s => s.Bookings)
                 .WithOne(b => b.Session)
                 .HasForeignKey(b => b.SessionId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<User>(entity =>
@@ -124,7 +125,7 @@ public class CinemaDbContext : DbContext
             entity.HasMany(u => u.Bookings)
                 .WithOne(b => b.User)
                 .HasForeignKey(b => b.UserId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<Booking>(entity =>
@@ -132,22 +133,12 @@ public class CinemaDbContext : DbContext
             entity.HasKey(b => b.Id);
             entity.Property(b => b.Status).IsRequired();
             entity.Property(b => b.CreatedAt).IsRequired();
-            entity.HasIndex(b => new { b.SessionId, b.SeatId }).IsUnique();
 
-            entity.HasOne(b => b.Session)
-                .WithMany(s => s.Bookings)
-                .HasForeignKey(b => b.SessionId)
-                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(b => new { b.SessionId, b.SeatId })
+                .IsUnique()
+                .HasFilter("[Status] = 1");
 
-            entity.HasOne(b => b.Seat)
-                .WithMany(s => s.Bookings)
-                .HasForeignKey(b => b.SeatId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasOne(b => b.User)
-                .WithMany(u => u.Bookings)
-                .HasForeignKey(b => b.UserId)
-                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(b => b.UserId);
         });
 
         modelBuilder.Entity<Ticket>(entity =>
@@ -162,7 +153,7 @@ public class CinemaDbContext : DbContext
             entity.HasOne(t => t.Booking)
                 .WithOne(b => b.Ticket)
                 .HasForeignKey<Ticket>(t => t.BookingId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

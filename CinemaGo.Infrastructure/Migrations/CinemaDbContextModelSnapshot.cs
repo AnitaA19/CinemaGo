@@ -52,7 +52,8 @@ namespace CinemaGo.Infrastructure.Migrations
                     b.HasIndex("UserId");
 
                     b.HasIndex("SessionId", "SeatId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("[Status] = 1");
 
                     b.ToTable("Bookings");
                 });
@@ -212,9 +213,9 @@ namespace CinemaGo.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("HallId");
-
                     b.HasIndex("MovieId");
+
+                    b.HasIndex("HallId", "StartsAt");
 
                     b.ToTable("Sessions", t =>
                         {
@@ -306,13 +307,13 @@ namespace CinemaGo.Infrastructure.Migrations
                     b.HasOne("CinemaGo.Domain.Entities.Session", "Session")
                         .WithMany("Bookings")
                         .HasForeignKey("SessionId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("CinemaGo.Domain.Entities.User", "User")
                         .WithMany("Bookings")
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Seat");
@@ -346,7 +347,7 @@ namespace CinemaGo.Infrastructure.Migrations
                     b.HasOne("CinemaGo.Domain.Entities.Hall", "Hall")
                         .WithMany("Seats")
                         .HasForeignKey("HallId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Hall");
@@ -376,7 +377,7 @@ namespace CinemaGo.Infrastructure.Migrations
                     b.HasOne("CinemaGo.Domain.Entities.Booking", "Booking")
                         .WithOne("Ticket")
                         .HasForeignKey("CinemaGo.Domain.Entities.Ticket", "BookingId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Booking");
