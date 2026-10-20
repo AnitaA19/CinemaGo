@@ -1,9 +1,10 @@
-<Solution>
+﻿<Solution>
   <Folder Name="/CinemaGo/">
-    <Project Path="Cinema/CinemaGo.Web.csproj" />
+    <Project Path="CinemaGo.Web/CinemaGo.Web.csproj" />
     <Project Path="CinemaGo.Application/CinemaGo.Application.csproj" />
     <Project Path="CinemaGo.Domain/CinemaGo.Domain.csproj" />
     <Project Path="CinemaGo.Infrastructure/CinemaGo.Infrastructure.csproj" />
     <Project Path="CinemaGo.Tests/CinemaGo.Tests.csproj" />
   </Folder>
 </Solution>
+
