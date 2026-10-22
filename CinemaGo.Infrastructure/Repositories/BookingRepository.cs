@@ -17,9 +17,9 @@ public class BookingRepository : IBookingRepository
         return await _context.Bookings.ToListAsync(cancellationToken);
     }
 
-    public async Task<ICollection<Booking>> GetBookingByIdAsync(int id, CancellationToken cancellationToken)
+    public async Task<Booking?> GetBookingByIdAsync(int id, CancellationToken cancellationToken)
     {
-        return await _context.Bookings.Where(b => b.Id == id).ToListAsync(cancellationToken);
+        return await _context.Bookings.FirstOrDefaultAsync(b => b.Id == id, cancellationToken);
     }
 
     public async Task AddBookingAsync(Booking booking, CancellationToken cancellationToken)

@@ -18,9 +18,9 @@ public class HallRepository : IHallRepository
         return await _context.Halls.ToListAsync(cancellationToken);
     }
 
-    public async Task<ICollection<Hall>> GetHallByIdAsync(int id, CancellationToken cancellationToken)
+    public async Task<Hall?> GetHallByIdAsync(int id, CancellationToken cancellationToken)
     {
-        return await _context.Halls.Where(h => h.Id == id).ToListAsync(cancellationToken);
+        return await _context.Halls.FirstOrDefaultAsync(h => h.Id == id, cancellationToken);
     }
 
     public async Task AddHallAsync(Hall hall, CancellationToken cancellationToken)

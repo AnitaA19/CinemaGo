@@ -23,7 +23,6 @@
     <ProjectReference Include="..\CinemaGo.Application\CinemaGo.Application.csproj" />
     <ProjectReference Include="..\CinemaGo.Domain\CinemaGo.Domain.csproj" />
     <ProjectReference Include="..\CinemaGo.Infrastructure\CinemaGo.Infrastructure.csproj" />
-    <ProjectReference Include="..\CinemaGo.Tests\CinemaGo.Tests.csproj" />
   </ItemGroup>
 
 </Project>

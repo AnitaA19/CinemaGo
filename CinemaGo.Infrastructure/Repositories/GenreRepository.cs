@@ -18,9 +18,9 @@ public class GenreRepository : IGenreRepository
         return await _context.Genres.ToListAsync(cancellationToken);
     }
 
-    public async Task<ICollection<Genre>> GetGenreByIdAsync(int id, CancellationToken cancellationToken)
+    public async Task<Genre?> GetGenreByIdAsync(int id, CancellationToken cancellationToken)
     {
-        return await _context.Genres.Where(g => g.Id == id).ToListAsync(cancellationToken);
+        return await _context.Genres.FirstOrDefaultAsync(g => g.Id == id, cancellationToken);
     }
 
     public async Task AddGenreAsync(Genre genre, CancellationToken cancellationToken)

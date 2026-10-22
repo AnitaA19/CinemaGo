@@ -18,9 +18,9 @@ public class SessionRepository : ISessionRepository
         return await _context.Sessions.ToListAsync(cancellationToken);
     }
 
-    public async Task<ICollection<Session>> GetSessionByIdAsync(int id, CancellationToken cancellationToken)
+    public async Task<Session?> GetSessionByIdAsync(int id, CancellationToken cancellationToken)
     {
-        return await _context.Sessions.Where(s => s.Id == id).ToListAsync(cancellationToken);
+        return await _context.Sessions.FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
     }
 
     public async Task AddSessionAsync(Session session, CancellationToken cancellationToken)

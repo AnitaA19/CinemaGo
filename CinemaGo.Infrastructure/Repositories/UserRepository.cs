@@ -18,9 +18,9 @@ public class UserRepository : IUserRepository
         return await _context.Users.ToListAsync(cancellationToken);
     }
 
-    public async Task<ICollection<User>> GetUserByIdAsync(int id, CancellationToken cancellationToken)
+    public async Task<User?> GetUserByIdAsync(int id, CancellationToken cancellationToken)
     {
-        return await _context.Users.Where(u => u.Id == id).ToListAsync(cancellationToken);
+        return await _context.Users.FirstOrDefaultAsync(u => u.Id == id, cancellationToken);
     }
 
     public async Task AddUserAsync(User user, CancellationToken cancellationToken)

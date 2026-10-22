@@ -1,4 +1,7 @@
 
+using CinemaGo.Application.Profiles;
+using CinemaGo.Application.Services.Implementations;
+using CinemaGo.Application.Services.Interfaces;
 using CinemaGo.Domain.Intefraces;
 using CinemaGo.Infrastructure.Data;
 using CinemaGo.Infrastructure.Repositories;
@@ -29,6 +32,10 @@ namespace Cinema
             builder.Services.AddScoped<ITicketRepository, TicketRepository>();
             builder.Services.AddScoped<IUserRepository, UserRepository>();
             builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+            builder.Services.AddScoped<IMovieService, MovieService>();
+            builder.Services.AddAutoMapper(cfg => { },
+                typeof(Program).Assembly,
+                typeof(MovieService).Assembly);
 
             builder.Services.AddControllers();
             builder.Services.AddOpenApi();

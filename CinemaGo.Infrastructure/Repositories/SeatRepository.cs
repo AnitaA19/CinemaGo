@@ -18,9 +18,9 @@ public class SeatRepository : ISeatRepository
         return await _context.Seats.ToListAsync(cancellationToken);
     }
 
-    public async Task<ICollection<Seat>> GetSeatByIdAsync(int id, CancellationToken cancellationToken)
+    public async Task<Seat?> GetSeatByIdAsync(int id, CancellationToken cancellationToken)
     {
-        return await _context.Seats.Where(s => s.Id == id).ToListAsync(cancellationToken);
+        return await _context.Seats.FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
     }
 
     public async Task AddSeatAsync(Seat seat, CancellationToken cancellationToken)

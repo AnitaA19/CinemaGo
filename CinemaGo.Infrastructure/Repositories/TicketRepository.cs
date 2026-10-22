@@ -18,9 +18,9 @@ public class TicketRepository : ITicketRepository
         return await _context.Tickets.ToListAsync(cancellationToken);
     }
 
-    public async Task<ICollection<Ticket>> GetTicketByIdAsync(int id, CancellationToken cancellationToken)
+    public async Task<Ticket?> GetTicketByIdAsync(int id, CancellationToken cancellationToken)
     {
-        return await _context.Tickets.Where(t => t.Id == id).ToListAsync(cancellationToken);
+        return await _context.Tickets.FirstOrDefaultAsync(t => t.Id == id, cancellationToken);
     }
 
     public async Task AddTicketAsync(Ticket ticket, CancellationToken cancellationToken)

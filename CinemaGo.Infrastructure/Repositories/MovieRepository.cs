@@ -18,9 +18,9 @@ public class MovieRepository : IMovieRepository
         return await _context.Movies.ToListAsync(cancellationToken);
     }
 
-    public async Task<ICollection<Movie>> GetMovieByIdAsync(int id, CancellationToken cancellationToken)
+    public async Task<Movie?> GetMovieByIdAsync(int id, CancellationToken cancellationToken)
     {
-        return await _context.Movies.Where(m => m.Id == id).ToListAsync(cancellationToken);
+        return await _context.Movies.FirstOrDefaultAsync(m => m.Id == id, cancellationToken);
     }
 
     public async Task AddMovieAsync(Movie movie, CancellationToken cancellationToken)
