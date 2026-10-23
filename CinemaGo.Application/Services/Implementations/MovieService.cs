@@ -29,9 +29,9 @@ namespace CinemaGo.Application.Services.Implementations
             {
                 throw new ArgumentException("Movie duration must be greater than zero.");
             }
-            if (movie.AgeRating < 0 && movie.AgeRating > 21)
+            if (movie.AgeRating < 0 || movie.AgeRating > 21)
             {
-                throw new ArgumentException("Movie age rating cannot be negative.");
+                throw new ArgumentException("Movie age rating must be between 0 and 21.");
             }
         }
 
