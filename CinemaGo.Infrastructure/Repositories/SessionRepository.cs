@@ -8,22 +8,48 @@ namespace CinemaGo.Infrastructure.Repositories;
 public class SessionRepository : ISessionRepository
 {
     private readonly CinemaDbContext _context;
+
     public SessionRepository(CinemaDbContext context)
     {
         _context = context;
     }
 
-    public async Task<ICollection<Session>> GetAllSessionsAsync(CancellationToken cancellationToken)
+    public async Task<ICollection<Session>> GetAllSessionsAsync(
+        CancellationToken cancellationToken)
     {
-        return await _context.Sessions.ToListAsync(cancellationToken);
+        return await _context.Sessions
+            .Include(s => s.Movie)
+            .Include(s => s.Hall)
+            .AsNoTracking()
+            .ToListAsync(cancellationToken);
     }
 
-    public async Task<Session?> GetSessionByIdAsync(int id, CancellationToken cancellationToken)
+    public async Task<Session?> GetSessionByIdAsync(
+        int id,
+        CancellationToken cancellationToken)
     {
-        return await _context.Sessions.FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
+        return await _context.Sessions
+            .Include(s => s.Movie)
+            .Include(s => s.Hall)
+            .FirstOrDefaultAsync(
+                s => s.Id == id,
+                cancellationToken);
     }
 
-    public async Task AddSessionAsync(Session session, CancellationToken cancellationToken)
+    public async Task<ICollection<Session>> GetSessionsByHallAsync(
+        int hallId,
+        CancellationToken cancellationToken)
+    {
+        return await _context.Sessions
+            .Include(s => s.Movie)
+            .Where(s => s.HallId == hallId)
+            .AsNoTracking()
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task AddSessionAsync(
+        Session session,
+        CancellationToken cancellationToken)
     {
         await _context.Sessions.AddAsync(session, cancellationToken);
     }
