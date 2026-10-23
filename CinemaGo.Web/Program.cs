@@ -39,6 +39,8 @@ namespace Cinema
 
             builder.Services.AddControllers();
             builder.Services.AddOpenApi();
+            builder.Services.AddSwaggerGen(options =>
+                options.SwaggerDoc("v1", new() { Title = "CinemaGo API", Version = "v1" }));
 
             var app = builder.Build();
 
@@ -46,6 +48,9 @@ namespace Cinema
             if (app.Environment.IsDevelopment())
             {
                 app.MapOpenApi();
+                app.UseSwagger();
+                app.UseSwaggerUI(options =>
+                    options.SwaggerEndpoint("/swagger/v1/swagger.json", "CinemaGo API v1"));
             }
 
             app.UseHttpsRedirection();
