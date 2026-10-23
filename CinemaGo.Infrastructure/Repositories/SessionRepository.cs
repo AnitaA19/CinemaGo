@@ -29,11 +29,12 @@ public class SessionRepository : ISessionRepository
         CancellationToken cancellationToken)
     {
         return await _context.Sessions
-            .Include(s => s.Movie)
-            .Include(s => s.Hall)
-            .FirstOrDefaultAsync(
-                s => s.Id == id,
-                cancellationToken);
+     .Include(s => s.Movie)
+     .Include(s => s.Hall)
+     .Include(s => s.Bookings)
+     .FirstOrDefaultAsync(
+         s => s.Id == id,
+         cancellationToken);
     }
 
     public async Task<ICollection<Session>> GetSessionsByHallAsync(
