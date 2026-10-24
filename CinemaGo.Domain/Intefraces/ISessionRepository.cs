@@ -1,4 +1,5 @@
-﻿using CinemaGo.Domain.Entities;
+﻿using CinemaGo.Domain.DTOs.SessionDTOs;
+using CinemaGo.Domain.Entities;
 
 namespace CinemaGo.Domain.Intefraces;
 
