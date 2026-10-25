@@ -33,6 +33,7 @@ namespace Cinema
             builder.Services.AddScoped<IUserRepository, UserRepository>();
             builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
             builder.Services.AddScoped<IMovieService, MovieService>();
+            builder.Services.AddScoped<ISessionService, SessionService>();
             builder.Services.AddAutoMapper(cfg => { },
                 typeof(Program).Assembly,
                 typeof(MovieService).Assembly);
