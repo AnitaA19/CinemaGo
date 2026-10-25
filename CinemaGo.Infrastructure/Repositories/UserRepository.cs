@@ -37,4 +37,22 @@ public class UserRepository : IUserRepository
     {
         _context.Users.Remove(user);
     }
+
+    public async Task<User?> GetUserByUsernameAsync(
+        string username,
+        CancellationToken cancellationToken)
+    {
+        return await _context.Users.FirstOrDefaultAsync(
+            u => u.Username == username,
+            cancellationToken);
+    }
+
+    public async Task<User?> GetUserByEmailAsync(
+        string email,
+        CancellationToken cancellationToken)
+    {
+        return await _context.Users.FirstOrDefaultAsync(
+            u => u.Email == email,
+            cancellationToken);
+    }
 }
