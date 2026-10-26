@@ -1,4 +1,5 @@
-﻿using AutoMapper;
+using AutoMapper;
+using CinemaGo.Domain.Exceptions;
 using CinemaGo.Domain.Intefraces;
 using CinemaGo.Domain.Entities;
 using CinemaGo.Domain.DTOs.MovieDTOs;
@@ -23,15 +24,15 @@ namespace CinemaGo.Application.Services.Implementations
         {
             if (string.IsNullOrWhiteSpace(movie.Title))
             {
-                throw new ArgumentException("Movie title cannot be empty.");
+                throw new ValidationException("Movie title cannot be empty.");
             }
             if (movie.DurationMinutes <= 0)
             {
-                throw new ArgumentException("Movie duration must be greater than zero.");
+                throw new ValidationException("Movie duration must be greater than zero.");
             }
             if (movie.AgeRating < 0 || movie.AgeRating > 21)
             {
-                throw new ArgumentException("Movie age rating must be between 0 and 21.");
+                throw new ValidationException("Movie age rating must be between 0 and 21.");
             }
         }
 

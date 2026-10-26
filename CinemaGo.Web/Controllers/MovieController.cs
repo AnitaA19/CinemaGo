@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using CinemaGo.Domain.DTOs.MovieDTOs;
 using CinemaGo.Application.Services.Interfaces;
 
@@ -18,61 +19,37 @@ public class MoviesController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<ICollection<MovieDTO>>> GetAll(CancellationToken cancellationToken)
     {
-        var movies = await _movieService.GetAllMoviesAsync(cancellationToken);
-        return Ok(movies);
+        return Ok(await _movieService.GetAllMoviesAsync(cancellationToken));
     }
 
     [HttpGet("{id:int}")]
     public async Task<ActionResult<MovieDTO>> GetById(int id, CancellationToken cancellationToken)
     {
         var movie = await _movieService.GetMovieByIdAsync(id, cancellationToken);
-        if (movie == null)
-        {
-            return NotFound();
-        }
-        return Ok(movie);
+        return movie == null ? NotFound() : Ok(movie);
     }
 
     [HttpPost]
+    [Authorize(Roles = "Admin")]
     public async Task<ActionResult<MovieDTO>> Create(CreateMovieDTO createMovieDto, CancellationToken cancellationToken)
     {
-        try
-        {
-            var movie = await _movieService.AddMovieAsync(createMovieDto, cancellationToken);
-            return CreatedAtAction(nameof(GetById), new { id = movie.Id }, movie);
-        }
-        catch (ArgumentException ex)
-        {
-            return BadRequest(new { error = ex.Message });
-        }
+        var movie = await _movieService.AddMovieAsync(createMovieDto, cancellationToken);
+        return CreatedAtAction(nameof(GetById), new { id = movie.Id }, movie);
     }
 
     [HttpPut("{id:int}")]
+    [Authorize(Roles = "Admin")]
     public async Task<ActionResult<MovieDTO>> Update(int id, UpdateMovieDTO updateMovieDto, CancellationToken cancellationToken)
     {
-        try
-        {
-            var movie = await _movieService.UpdateMovieAsync(id, updateMovieDto, cancellationToken);
-            if (movie == null)
-            {
-                return NotFound();
-            }
-            return Ok(movie);
-        }
-        catch (ArgumentException ex)
-        {
-            return BadRequest(new { error = ex.Message });
-        }
+        var movie = await _movieService.UpdateMovieAsync(id, updateMovieDto, cancellationToken);
+        return movie == null ? NotFound() : Ok(movie);
     }
 
     [HttpDelete("{id:int}")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Delete(int id, CancellationToken cancellationToken)
     {
         var deleted = await _movieService.DeleteMovieAsync(id, cancellationToken);
-        if (!deleted)
-        {
-            return NotFound();
-        }
-        return NoContent();
+        return deleted ? NoContent() : NotFound();
     }
 }

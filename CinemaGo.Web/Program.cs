@@ -42,6 +42,9 @@ namespace Cinema
             builder.Services.AddScoped<ISessionService, SessionService>();
             builder.Services.AddScoped<IAuthService, AuthService>();
 
+            builder.Services.AddExceptionHandler<CinemaGo.Web.Middleware.GlobalExceptionHandler>();
+            builder.Services.AddProblemDetails();
+
             // Secure password hashing
             builder.Services.AddScoped<IPasswordHasher<User>,
                 PasswordHasher<User>>();
@@ -112,6 +115,8 @@ namespace Cinema
                     }));
 
             var app = builder.Build();
+
+            app.UseExceptionHandler();
 
             if (app.Environment.IsDevelopment())
             {

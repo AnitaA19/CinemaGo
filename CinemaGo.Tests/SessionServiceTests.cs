@@ -4,13 +4,14 @@ using CinemaGo.Application.Services.Implementations;
 using CinemaGo.Domain.DTOs.SessionDTOs;
 using CinemaGo.Domain.Entities;
 using CinemaGo.Domain.Enums;
+using CinemaGo.Domain.Exceptions;
 using CinemaGo.Domain.Intefraces;
 
 namespace CinemaGo.Tests;
 
 public class SessionServiceTests
 {
-    private static readonly DateTime Start = new(2030, 1, 1, 18, 0, 0);
+    private static readonly DateTime Start = new(2030, 1, 1, 18, 0, 0, DateTimeKind.Utc);
 
     private readonly FakeSessionRepository _sessions = new();
     private readonly FakeMovieRepository _movies = new();
@@ -76,36 +77,36 @@ public class SessionServiceTests
     }
 
     [Fact]
-    public async Task AddSession_NonExistentMovie_ThrowsArgumentException()
+    public async Task AddSession_NonExistentMovie_ThrowsNotFound()
     {
         var dto = NewCreateDto();
         dto.MovieId = 42;
 
-        await Assert.ThrowsAsync<ArgumentException>(
+        await Assert.ThrowsAsync<NotFoundException>(
             () => _service.AddSessionAsync(dto, CancellationToken.None));
     }
 
     [Fact]
-    public async Task AddSession_NegativePrice_ThrowsArgumentException()
+    public async Task AddSession_NegativePrice_ThrowsValidation()
     {
         var dto = NewCreateDto();
         dto.StandardPrice = -1;
 
-        await Assert.ThrowsAsync<ArgumentException>(
+        await Assert.ThrowsAsync<ValidationException>(
             () => _service.AddSessionAsync(dto, CancellationToken.None));
     }
 
     [Fact]
-    public async Task AddSession_OverlappingInSameHall_ThrowsArgumentException()
+    public async Task AddSession_OverlappingInSameHall_ThrowsConflict()
     {
         AddExisting(1, Start);
 
-        await Assert.ThrowsAsync<ArgumentException>(
+        await Assert.ThrowsAsync<ConflictException>(
             () => _service.AddSessionAsync(NewCreateDto(Start.AddMinutes(60)), CancellationToken.None));
     }
 
     [Fact]
-    public async Task UpdateSession_WithActiveBookings_ThrowsArgumentException()
+    public async Task UpdateSession_WithActiveBookings_ThrowsConflict()
     {
         var session = AddExisting(1, Start);
         session.Bookings.Add(new Booking { Status = BookingStatus.Active });
@@ -119,8 +120,24 @@ public class SessionServiceTests
             VipPrice = 20
         };
 
-        await Assert.ThrowsAsync<ArgumentException>(
+        await Assert.ThrowsAsync<ConflictException>(
             () => _service.UpdateSessionAsync(1, dto, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task AddSession_InThePast_ThrowsValidation()
+    {
+        await Assert.ThrowsAsync<ValidationException>(
+            () => _service.AddSessionAsync(
+                NewCreateDto(new DateTime(2000, 1, 1, 18, 0, 0, DateTimeKind.Utc)), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task AddSession_UnspecifiedKind_ThrowsValidation()
+    {
+        await Assert.ThrowsAsync<ValidationException>(
+            () => _service.AddSessionAsync(
+                NewCreateDto(new DateTime(2030, 1, 1, 18, 0, 0)), CancellationToken.None));
     }
 
     [Fact]

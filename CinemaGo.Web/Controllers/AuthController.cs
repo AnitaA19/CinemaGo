@@ -1,10 +1,12 @@
-﻿using CinemaGo.Application.Services.Interfaces;
+using CinemaGo.Application.Services.Interfaces;
 using CinemaGo.Domain.DTOs.AuthDTOs;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CinemaGo.Web.Controllers;
 
 [ApiController]
+[AllowAnonymous]
 [Route("api/auth")]
 public class AuthController : ControllerBase
 {
@@ -20,17 +22,7 @@ public class AuthController : ControllerBase
         [FromBody] RegisterDTO dto,
         CancellationToken cancellationToken)
     {
-        try
-        {
-            var result = await _authService.RegisterAsync(
-                dto, cancellationToken);
-
-            return Ok(result);
-        }
-        catch (ArgumentException ex)
-        {
-            return Conflict(new { message = ex.Message });
-        }
+        return Ok(await _authService.RegisterAsync(dto, cancellationToken));
     }
 
     [HttpPost("login")]
@@ -38,19 +30,6 @@ public class AuthController : ControllerBase
         [FromBody] LoginDTO dto,
         CancellationToken cancellationToken)
     {
-        try
-        {
-            var result = await _authService.LoginAsync(
-                dto, cancellationToken);
-
-            return Ok(result);
-        }
-        catch (UnauthorizedAccessException)
-        {
-            return Unauthorized(new
-            {
-                message = "Invalid username/email or password."
-            });
-        }
+        return Ok(await _authService.LoginAsync(dto, cancellationToken));
     }
 }

@@ -1,9 +1,10 @@
-﻿using System.IdentityModel.Tokens.Jwt;
+using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using CinemaGo.Domain.DTOs.AuthDTOs;
 using CinemaGo.Domain.Entities;
 using CinemaGo.Domain.Enums;
+using CinemaGo.Domain.Exceptions;
 using CinemaGo.Domain.Intefraces;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
@@ -37,13 +38,18 @@ public class AuthService : Services.Interfaces.IAuthService
         var username = dto.Username.Trim();
         var email = dto.Email.Trim();
 
+        if (username.Length < 3 || string.IsNullOrWhiteSpace(email))
+        {
+            throw new ValidationException("Username and email are required.");
+        }
+
         var existingUsername =
             await _userRepository.GetUserByUsernameAsync(
                 username, cancellationToken);
 
         if (existingUsername is not null)
         {
-            throw new ArgumentException("Username is already taken.");
+            throw new ConflictException("Username is already taken.");
         }
 
         var existingEmail =
@@ -52,7 +58,7 @@ public class AuthService : Services.Interfaces.IAuthService
 
         if (existingEmail is not null)
         {
-            throw new ArgumentException("Email is already registered.");
+            throw new ConflictException("Email is already registered.");
         }
 
         var user = new User

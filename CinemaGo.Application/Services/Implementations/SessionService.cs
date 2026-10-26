@@ -1,8 +1,9 @@
-﻿using AutoMapper;
+using AutoMapper;
 using CinemaGo.Application.Services.Interfaces;
 using CinemaGo.Domain.DTOs.SessionDTOs;
 using CinemaGo.Domain.Entities;
 using CinemaGo.Domain.Enums;
+using CinemaGo.Domain.Exceptions;
 using CinemaGo.Domain.Intefraces;
 
 namespace CinemaGo.Application.Services.Implementations;
@@ -61,7 +62,7 @@ public class SessionService : ISessionService
 
         if (movie is null)
         {
-            throw new ArgumentException("Movie was not found.");
+            throw new NotFoundException("Movie was not found.");
         }
 
         var hall = await _hallRepository.GetHallByIdAsync(
@@ -69,14 +70,14 @@ public class SessionService : ISessionService
 
         if (hall is null)
         {
-            throw new ArgumentException("Hall was not found.");
+            throw new NotFoundException("Hall was not found.");
         }
 
-        ValidateStartTime(dto.StartsAt);
+        var startsAt = NormalizeStartTime(dto.StartsAt);
 
         await EnsureNoOverlapAsync(
             dto.HallId,
-            dto.StartsAt,
+            startsAt,
             movie.DurationMinutes,
             null,
             cancellationToken);
@@ -85,7 +86,7 @@ public class SessionService : ISessionService
         {
             MovieId = movie.Id,
             HallId = hall.Id,
-            StartsAt = dto.StartsAt,
+            StartsAt = startsAt,
             StandardPrice = dto.StandardPrice,
             VipPrice = dto.VipPrice,
             Status = SessionStatus.Scheduled
@@ -123,7 +124,7 @@ public class SessionService : ISessionService
 
         if (session.Bookings.Any(b => b.Status == BookingStatus.Active))
         {
-            throw new ArgumentException(
+            throw new ConflictException(
                 "A session with active bookings cannot be updated.");
         }
 
@@ -134,7 +135,7 @@ public class SessionService : ISessionService
 
         if (movie is null)
         {
-            throw new ArgumentException("Movie was not found.");
+            throw new NotFoundException("Movie was not found.");
         }
 
         var hall = await _hallRepository.GetHallByIdAsync(
@@ -142,21 +143,21 @@ public class SessionService : ISessionService
 
         if (hall is null)
         {
-            throw new ArgumentException("Hall was not found.");
+            throw new NotFoundException("Hall was not found.");
         }
 
-        ValidateStartTime(dto.StartsAt);
+        var startsAt = NormalizeStartTime(dto.StartsAt);
 
         await EnsureNoOverlapAsync(
             dto.HallId,
-            dto.StartsAt,
+            startsAt,
             movie.DurationMinutes,
             id,
             cancellationToken);
 
         session.MovieId = movie.Id;
         session.HallId = hall.Id;
-        session.StartsAt = dto.StartsAt;
+        session.StartsAt = startsAt;
         session.StandardPrice = dto.StandardPrice;
         session.VipPrice = dto.VipPrice;
 
@@ -184,7 +185,7 @@ public class SessionService : ISessionService
 
         if (session.Bookings.Any())
         {
-            throw new ArgumentException(
+            throw new ConflictException(
                 "A session with bookings cannot be deleted.");
         }
 
@@ -224,7 +225,7 @@ public class SessionService : ISessionService
 
             if (overlaps)
             {
-                throw new ArgumentException(
+                throw new ConflictException(
                     "The session overlaps with another session in this hall.");
             }
         }
@@ -236,23 +237,38 @@ public class SessionService : ISessionService
     {
         if (standardPrice < 0)
         {
-            throw new ArgumentException(
+            throw new ValidationException(
                 "Standard price cannot be negative.");
         }
 
         if (vipPrice < standardPrice)
         {
-            throw new ArgumentException(
+            throw new ValidationException(
                 "VIP price cannot be lower than standard price.");
         }
     }
 
-    private static void ValidateStartTime(DateTime startsAt)
+    // Start times are stored and compared in UTC; unspecified kinds are rejected as ambiguous.
+    private static DateTime NormalizeStartTime(DateTime startsAt)
     {
         if (startsAt == default)
         {
-            throw new ArgumentException(
-                "Session start time must be specified.");
+            throw new ValidationException("Session start time must be specified.");
         }
+
+        if (startsAt.Kind == DateTimeKind.Unspecified)
+        {
+            throw new ValidationException(
+                "Session start time must include a UTC offset (e.g. 2030-01-01T18:00:00Z).");
+        }
+
+        var utc = startsAt.ToUniversalTime();
+
+        if (utc <= DateTime.UtcNow)
+        {
+            throw new ValidationException("Session start time must be in the future.");
+        }
+
+        return utc;
     }
 }
