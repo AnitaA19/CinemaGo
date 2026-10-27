@@ -29,8 +29,11 @@ public class CinemaDbContext : DbContext
             entity.Property(m => m.Title).IsRequired().HasMaxLength(200);
             entity.Property(m => m.DurationMinutes).IsRequired();
             entity.Property(m => m.AgeRating).IsRequired();
-            entity.HasCheckConstraint("CK_Movies_DurationMinutes", "[DurationMinutes] > 0");
-            entity.HasCheckConstraint("CK_Movies_AgeRating", "[AgeRating] >= 0 AND [AgeRating] <= 21");
+            entity.ToTable(t =>
+            {
+                t.HasCheckConstraint("CK_Movies_DurationMinutes", "[DurationMinutes] > 0");
+                t.HasCheckConstraint("CK_Movies_AgeRating", "[AgeRating] >= 0 AND [AgeRating] <= 21");
+            });
 
             entity.HasMany(m => m.Sessions)
                 .WithOne(s => s.Movie)
@@ -66,7 +69,7 @@ public class CinemaDbContext : DbContext
             entity.Property(h => h.Name).IsRequired().HasMaxLength(100);
             entity.Property(h => h.Capacity).IsRequired();
             entity.HasIndex(h => h.Name).IsUnique();
-            entity.HasCheckConstraint("CK_Halls_Capacity", "[Capacity] > 0");
+            entity.ToTable(t => t.HasCheckConstraint("CK_Halls_Capacity", "[Capacity] > 0"));
 
             entity.HasMany(h => h.Seats)
                 .WithOne(s => s.Hall)
@@ -86,8 +89,11 @@ public class CinemaDbContext : DbContext
             entity.Property(s => s.SeatNumber).IsRequired();
             entity.Property(s => s.IsVip).IsRequired();
             entity.HasIndex(s => new { s.HallId, s.RowNumber, s.SeatNumber }).IsUnique();
-            entity.HasCheckConstraint("CK_Seats_RowNumber", "[RowNumber] > 0");
-            entity.HasCheckConstraint("CK_Seats_SeatNumber", "[SeatNumber] > 0");
+            entity.ToTable(t =>
+            {
+                t.HasCheckConstraint("CK_Seats_RowNumber", "[RowNumber] > 0");
+                t.HasCheckConstraint("CK_Seats_SeatNumber", "[SeatNumber] > 0");
+            });
 
             entity.HasMany(s => s.Bookings)
                 .WithOne(b => b.Seat)
@@ -103,8 +109,11 @@ public class CinemaDbContext : DbContext
             entity.Property(s => s.VipPrice).HasPrecision(18, 2).IsRequired();
             entity.Property(s => s.Status).IsRequired();
             entity.HasIndex(s => new { s.HallId, s.StartsAt });
-            entity.HasCheckConstraint("CK_Sessions_StandardPrice", "[StandardPrice] >= 0");
-            entity.HasCheckConstraint("CK_Sessions_VipPrice", "[VipPrice] >= [StandardPrice]");
+            entity.ToTable(t =>
+            {
+                t.HasCheckConstraint("CK_Sessions_StandardPrice", "[StandardPrice] >= 0");
+                t.HasCheckConstraint("CK_Sessions_VipPrice", "[VipPrice] >= [StandardPrice]");
+            });
 
             entity.HasMany(s => s.Bookings)
                 .WithOne(b => b.Session)
@@ -146,7 +155,7 @@ public class CinemaDbContext : DbContext
             entity.HasKey(t => t.Id);
             entity.Property(t => t.TicketCode).IsRequired().HasMaxLength(64);
             entity.Property(t => t.FinalPrice).HasPrecision(18, 2).IsRequired();
-            entity.HasCheckConstraint("CK_Tickets_FinalPrice", "[FinalPrice] >= 0");
+            entity.ToTable(t => t.HasCheckConstraint("CK_Tickets_FinalPrice", "[FinalPrice] >= 0"));
             entity.HasIndex(t => t.TicketCode).IsUnique();
             entity.HasIndex(t => t.BookingId).IsUnique();
 

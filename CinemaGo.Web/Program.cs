@@ -38,6 +38,7 @@ namespace Cinema
             builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 
             // Application services
+            builder.Services.AddScoped<IBookingService, BookingService>();
             builder.Services.AddScoped<IMovieService, MovieService>();
             builder.Services.AddScoped<ISessionService, SessionService>();
             builder.Services.AddScoped<IAuthService, AuthService>();

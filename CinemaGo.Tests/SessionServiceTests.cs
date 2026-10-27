@@ -21,7 +21,7 @@ public class SessionServiceTests
 
     public SessionServiceTests()
     {
-        var mapper = new MapperConfiguration(c => c.AddProfile<SessionProfile>()).CreateMapper();
+        var mapper = new MapperConfiguration(c => c.AddProfile<SessionProfile>(), Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance).CreateMapper();
         _service = new SessionService(_sessions, _movies, _halls, _uow, mapper);
 
         _movies.Items[1] = new Movie { Id = 1, Title = "Dune", DurationMinutes = 120 };
