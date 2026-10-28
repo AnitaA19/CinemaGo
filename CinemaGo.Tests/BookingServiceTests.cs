@@ -75,6 +75,71 @@ public class BookingServiceTests
     }
 
     [Fact]
+    public async Task BookTicket_StandardSeat_UsesStandardPrice()
+    {
+        _seats.Seat.IsVip = false;
+
+        var result = await _service.BookTicketAsync(
+            new CreateBookingDTO { SessionId = 1, SeatId = 3 },
+            userId: 7,
+            CancellationToken.None);
+
+        Assert.Equal(10m, result.FinalPrice);
+        Assert.Equal(10m, _bookings.AddedBooking!.Ticket!.FinalPrice);
+        Assert.False(result.IsVip);
+    }
+
+    [Fact]
+    public async Task BookTicket_SeatInAnotherHall_ThrowsValidationAndDoesNotSave()
+    {
+        _seats.Seat.HallId = 99;
+
+        await Assert.ThrowsAsync<ValidationException>(() => _service.BookTicketAsync(
+            new CreateBookingDTO { SessionId = 1, SeatId = 3 },
+            userId: 7,
+            CancellationToken.None));
+
+        Assert.Null(_bookings.AddedBooking);
+        Assert.Equal(0, _unitOfWork.SaveCount);
+    }
+
+    [Fact]
+    public async Task BookTicket_SessionAlreadyStarted_ThrowsValidationAndDoesNotSave()
+    {
+        _sessions.Session.StartsAt = DateTime.UtcNow.AddMinutes(-1);
+
+        await Assert.ThrowsAsync<ValidationException>(() => _service.BookTicketAsync(
+            new CreateBookingDTO { SessionId = 1, SeatId = 3 },
+            userId: 7,
+            CancellationToken.None));
+
+        Assert.Null(_bookings.AddedBooking);
+        Assert.Equal(0, _unitOfWork.SaveCount);
+    }
+
+    [Fact]
+    public async Task BookTicket_UnknownSession_ThrowsNotFound()
+    {
+        await Assert.ThrowsAsync<NotFoundException>(() => _service.BookTicketAsync(
+            new CreateBookingDTO { SessionId = 404, SeatId = 3 },
+            userId: 7,
+            CancellationToken.None));
+
+        Assert.Equal(0, _unitOfWork.SaveCount);
+    }
+
+    [Fact]
+    public async Task BookTicket_UnknownSeat_ThrowsNotFound()
+    {
+        await Assert.ThrowsAsync<NotFoundException>(() => _service.BookTicketAsync(
+            new CreateBookingDTO { SessionId = 1, SeatId = 404 },
+            userId: 7,
+            CancellationToken.None));
+
+        Assert.Equal(0, _unitOfWork.SaveCount);
+    }
+
+    [Fact]
     public async Task BookTicket_CancelledSession_ThrowsValidationAndDoesNotSave()
     {
         _sessions.Session.Status = SessionStatus.Cancelled;

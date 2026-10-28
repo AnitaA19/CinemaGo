@@ -18,8 +18,57 @@ Layered solution: `Domain` (entities, DTOs, exceptions) → `Application` (servi
 | POST | `/api/auth/register`, `/api/auth/login` | anonymous |
 | GET | `/api/movies`, `/api/movies/{id}`, `/api/sessions`, `/api/sessions/{id}` | anonymous |
 | POST/PUT/DELETE | `/api/movies`, `/api/sessions` | **Admin** |
+| POST | `/api/bookings` | JWT (any user) |
+| GET | `/api/bookings/my` | JWT (own bookings) |
+| GET | `/api/bookings/{id}` | JWT (owner) or **Admin** |
+| DELETE | `/api/bookings/{id}` | JWT (owner) or **Admin** |
+| GET | `/api/bookings` | **Admin** |
 
 Send the JWT as `Authorization: Bearer <token>`. New users are registered as `Customer`; promote a user to `Admin` directly in the database.
+
+## Bookings
+
+All booking endpoints require a valid JWT (`Authorization: Bearer <token>`); anonymous calls return 401.
+The user is taken from the token, never from the request body. Another user's booking is reported as 404 (non-admin).
+
+`POST /api/bookings`
+
+```json
+{ "sessionId": 1, "seatId": 3 }
+```
+
+`201 Created` (with a `Location` header pointing to `/api/bookings/{id}`):
+
+```json
+{
+  "id": 15,
+  "userId": 7,
+  "sessionId": 1,
+  "seatId": 3,
+  "movieTitle": "Dune",
+  "sessionStartsAt": "2026-11-01T18:00:00Z",
+  "rowNumber": 4,
+  "seatNumber": 5,
+  "isVip": true,
+  "status": "Active",
+  "createdAt": "2026-10-28T12:50:00Z",
+  "ticketCode": "3f9c2a7e5b1d4c0f8a6e2d9b7c4a1e50",
+  "finalPrice": 20.00
+}
+```
+
+The price is calculated on the server (`vipPrice` for VIP seats, otherwise `standardPrice`).
+
+| Status | Reason |
+|---|---|
+| 400 | seat is in another hall, or the session is cancelled / already started, or the booking is already cancelled |
+| 403 | cancelling another user's booking |
+| 404 | session, seat or booking not found |
+| 409 | seat already booked for this session |
+
+`DELETE /api/bookings/{id}` cancels the booking (204) and frees the seat for a new booking.
+Double booking is prevented both by a service check and by a unique database index on active
+`(SessionId, SeatId)`, which also protects against simultaneous requests.
 
 ## Behavior notes
 
