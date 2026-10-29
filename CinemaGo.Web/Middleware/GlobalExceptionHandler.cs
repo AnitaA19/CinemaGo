@@ -1,6 +1,6 @@
 using CinemaGo.Domain.Exceptions;
+using CinemaGo.Web.Responses;
 using Microsoft.AspNetCore.Diagnostics;
-using Microsoft.AspNetCore.Mvc;
 
 namespace CinemaGo.Web.Middleware;
 
@@ -18,15 +18,15 @@ public class GlobalExceptionHandler : IExceptionHandler
         Exception exception,
         CancellationToken cancellationToken)
     {
-        var (status, title) = exception switch
+        var status = exception switch
         {
-            NotFoundException => (StatusCodes.Status404NotFound, "Not Found"),
-            ConflictException => (StatusCodes.Status409Conflict, "Conflict"),
-            ValidationException => (StatusCodes.Status400BadRequest, "Validation Error"),
-            ForbiddenException => (StatusCodes.Status403Forbidden, "Forbidden"),
-            Microsoft.EntityFrameworkCore.DbUpdateException => (StatusCodes.Status409Conflict, "Conflict"),
-            UnauthorizedAccessException => (StatusCodes.Status401Unauthorized, "Unauthorized"),
-            _ => (StatusCodes.Status500InternalServerError, "Internal Server Error")
+            NotFoundException => StatusCodes.Status404NotFound,
+            ConflictException => StatusCodes.Status409Conflict,
+            ValidationException => StatusCodes.Status400BadRequest,
+            ForbiddenException => StatusCodes.Status403Forbidden,
+            Microsoft.EntityFrameworkCore.DbUpdateException => StatusCodes.Status409Conflict,
+            UnauthorizedAccessException => StatusCodes.Status401Unauthorized,
+            _ => StatusCodes.Status500InternalServerError
         };
 
         if (status == StatusCodes.Status500InternalServerError)
@@ -40,25 +40,23 @@ public class GlobalExceptionHandler : IExceptionHandler
 
         httpContext.Response.StatusCode = status;
 
-        var problem = new ProblemDetails
-            {
-                Type = $"https://httpstatuses.io/{status}",
-                Instance = httpContext.Request.Path,
-                Status = status,
-                Title = title,
-                Detail = exception is Microsoft.EntityFrameworkCore.DbUpdateException
-                    ? "The request conflicts with existing data (e.g. the seat was just booked by someone else)."
-                    : status == StatusCodes.Status500InternalServerError
-                    ? "An unexpected error occurred."
-                    : exception.Message
-            };
+        var message = exception is Microsoft.EntityFrameworkCore.DbUpdateException
+            ? "The request conflicts with existing data (e.g. the seat was just booked by someone else)."
+            : status == StatusCodes.Status500InternalServerError
+                ? "An unexpected error occurred."
+                : exception.Message;
 
-        problem.Extensions["traceId"] = httpContext.TraceIdentifier;
+        var response = new ApiResponse<object>
+        {
+            Success = false,
+            Message = message,
+            Errors = exception is ValidationException
+                ? new Dictionary<string, string[]> { ["general"] = [message] }
+                : null
+        };
 
         await httpContext.Response.WriteAsJsonAsync(
-            problem,
-            options: null,
-            contentType: "application/problem+json",
+            response,
             cancellationToken: cancellationToken);
 
         return true;
