@@ -1,10 +1,11 @@
-﻿using CinemaGo.Domain.Entities;
+using CinemaGo.Domain.Entities;
 
 namespace CinemaGo.Domain.Intefraces;
 
 public interface IMovieRepository
 {
     Task<ICollection<Movie>> GetAllMoviesAsync(CancellationToken cancellationToken);
+    Task<(ICollection<Movie> Movies, int TotalCount)> GetMoviesPagedAsync(string? title, int? genreId, int page, int pageSize, CancellationToken cancellationToken);
     Task<Movie?> GetMovieByIdAsync(
       int id,
       CancellationToken cancellationToken);

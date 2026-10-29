@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using CinemaGo.Domain.Constants;
 using CinemaGo.Domain.DTOs.MovieDTOs;
 using CinemaGo.Application.Services.Interfaces;
 
@@ -17,9 +18,14 @@ public class MoviesController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<ICollection<MovieDTO>>> GetAll(CancellationToken cancellationToken)
+    public async Task<ActionResult<PagedMoviesDTO>> GetAll(
+        [FromQuery] string? title,
+        [FromQuery] int? genreId,
+        CancellationToken cancellationToken,
+        [FromQuery] int page = PaginationLimits.DefaultPage,
+        [FromQuery] int pageSize = PaginationLimits.DefaultPageSize)
     {
-        return Ok(await _movieService.GetAllMoviesAsync(cancellationToken));
+        return Ok(await _movieService.GetMoviesAsync(title, genreId, page, pageSize, cancellationToken));
     }
 
     [HttpGet("{id:int}")]

@@ -1,4 +1,5 @@
 using AutoMapper;
+using CinemaGo.Domain.Constants;
 using CinemaGo.Domain.Exceptions;
 using CinemaGo.Domain.Intefraces;
 using CinemaGo.Domain.Entities;
@@ -40,6 +41,34 @@ namespace CinemaGo.Application.Services.Implementations
         {
             var movies = await _movieRepository.GetAllMoviesAsync(cancellationToken);
             return movies.Select(_mapper.Map<Movie, MovieDTO>).ToList();
+        }
+
+        public async Task<PagedMoviesDTO> GetMoviesAsync(string? title, int? genreId, int page, int pageSize, CancellationToken cancellationToken)
+        {
+            if (page < 1)
+            {
+                throw new ValidationException("Page must be greater than or equal to 1.");
+            }
+            if (pageSize < 1 || pageSize > PaginationLimits.MaxPageSize)
+            {
+                throw new ValidationException($"Page size must be between 1 and {PaginationLimits.MaxPageSize}.");
+            }
+            if (genreId.HasValue && genreId.Value < 1)
+            {
+                throw new ValidationException("Genre id must be greater than zero.");
+            }
+
+            var (movies, totalCount) = await _movieRepository.GetMoviesPagedAsync(
+                title?.Trim(), genreId, page, pageSize, cancellationToken);
+
+            return new PagedMoviesDTO
+            {
+                Movies = movies.Select(_mapper.Map<Movie, MovieDTO>).ToList(),
+                Page = page,
+                PageSize = pageSize,
+                TotalCount = totalCount,
+                TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize)
+            };
         }
 
         public async Task<MovieDTO?> GetMovieByIdAsync(int id, CancellationToken cancellationToken)

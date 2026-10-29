@@ -248,6 +248,9 @@ public class SessionServiceTests
         public Task<ICollection<Movie>> GetAllMoviesAsync(CancellationToken ct) =>
             Task.FromResult<ICollection<Movie>>(Items.Values.ToList());
 
+        public Task<(ICollection<Movie> Movies, int TotalCount)> GetMoviesPagedAsync(string? title, int? genreId, int page, int pageSize, CancellationToken ct) =>
+            Task.FromResult<(ICollection<Movie>, int)>((Items.Values.ToList(), Items.Count));
+
         public Task<Movie?> GetMovieByIdAsync(int id, CancellationToken ct) =>
             Task.FromResult(Items.GetValueOrDefault(id));
 
