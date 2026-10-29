@@ -13,6 +13,7 @@ public class SessionService : ISessionService
     private readonly ISessionRepository _sessionRepository;
     private readonly IMovieRepository _movieRepository;
     private readonly IHallRepository _hallRepository;
+    private readonly ISeatRepository _seatRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
 
@@ -20,12 +21,14 @@ public class SessionService : ISessionService
         ISessionRepository sessionRepository,
         IMovieRepository movieRepository,
         IHallRepository hallRepository,
+        ISeatRepository seatRepository,
         IUnitOfWork unitOfWork,
         IMapper mapper)
     {
         _sessionRepository = sessionRepository;
         _movieRepository = movieRepository;
         _hallRepository = hallRepository;
+        _seatRepository = seatRepository;
         _unitOfWork = unitOfWork;
         _mapper = mapper;
     }
@@ -49,6 +52,40 @@ public class SessionService : ISessionService
             .GetSessionByIdAsync(id, cancellationToken);
 
         return session is null ? null : _mapper.Map<SessionDTO>(session);
+    }
+
+    public async Task<ICollection<SeatAvailabilityDTO>?> GetSessionSeatsAsync(
+        int id,
+        CancellationToken cancellationToken)
+    {
+        var session = await _sessionRepository
+            .GetSessionByIdAsync(id, cancellationToken);
+
+        if (session is null)
+        {
+            return null;
+        }
+
+        var seats = await _seatRepository
+            .GetSeatsByHallIdAsync(session.HallId, cancellationToken);
+
+        var bookedSeatIds = session.Bookings
+            .Where(b => b.Status == BookingStatus.Active)
+            .Select(b => b.SeatId)
+            .ToHashSet();
+
+        return seats
+            .OrderBy(s => s.RowNumber)
+            .ThenBy(s => s.SeatNumber)
+            .Select(s => new SeatAvailabilityDTO
+            {
+                SeatId = s.Id,
+                RowNumber = s.RowNumber,
+                SeatNumber = s.SeatNumber,
+                IsVip = s.IsVip,
+                IsAvailable = !bookedSeatIds.Contains(s.Id)
+            })
+            .ToList();
     }
 
     public async Task<SessionDTO> AddSessionAsync(

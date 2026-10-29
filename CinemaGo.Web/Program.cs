@@ -39,6 +39,7 @@ namespace Cinema
 
             // Application services
             builder.Services.AddScoped<IBookingService, BookingService>();
+            builder.Services.AddScoped<ITicketService, TicketService>();
             builder.Services.AddScoped<IMovieService, MovieService>();
             builder.Services.AddScoped<ISessionService, SessionService>();
             builder.Services.AddScoped<IAuthService, AuthService>();
@@ -118,6 +119,7 @@ namespace Cinema
             var app = builder.Build();
 
             app.UseExceptionHandler();
+            app.UseStatusCodePages();
 
             if (app.Environment.IsDevelopment())
             {

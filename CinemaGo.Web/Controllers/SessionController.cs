@@ -29,6 +29,13 @@ public class SessionsController : ControllerBase
         return session is null ? NotFound() : Ok(session);
     }
 
+    [HttpGet("{id:int}/seats")]
+    public async Task<ActionResult<ICollection<SeatAvailabilityDTO>>> GetSeats(int id, CancellationToken cancellationToken)
+    {
+        var seats = await _sessionService.GetSessionSeatsAsync(id, cancellationToken);
+        return seats is null ? NotFound() : Ok(seats);
+    }
+
     [HttpPost]
     [Authorize(Roles = "Admin")]
     public async Task<ActionResult<SessionDTO>> Create(CreateSessionDTO dto, CancellationToken cancellationToken)

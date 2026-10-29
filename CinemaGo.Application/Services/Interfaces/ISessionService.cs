@@ -11,6 +11,10 @@ public interface ISessionService
         int id,
         CancellationToken cancellationToken);
 
+    Task<ICollection<SeatAvailabilityDTO>?> GetSessionSeatsAsync(
+        int id,
+        CancellationToken cancellationToken);
+
     Task<SessionDTO> AddSessionAsync(
         CreateSessionDTO dto,
         CancellationToken cancellationToken);

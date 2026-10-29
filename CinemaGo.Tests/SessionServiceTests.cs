@@ -16,13 +16,14 @@ public class SessionServiceTests
     private readonly FakeSessionRepository _sessions = new();
     private readonly FakeMovieRepository _movies = new();
     private readonly FakeHallRepository _halls = new();
+    private readonly FakeSeatRepository _seats = new();
     private readonly FakeUnitOfWork _uow = new();
     private readonly SessionService _service;
 
     public SessionServiceTests()
     {
         var mapper = new MapperConfiguration(c => c.AddProfile<SessionProfile>(), Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance).CreateMapper();
-        _service = new SessionService(_sessions, _movies, _halls, _uow, mapper);
+        _service = new SessionService(_sessions, _movies, _halls, _seats, _uow, mapper);
 
         _movies.Items[1] = new Movie { Id = 1, Title = "Dune", DurationMinutes = 120 };
         _halls.Items[1] = new Hall { Id = 1, Name = "Hall A" };
@@ -149,6 +150,71 @@ public class SessionServiceTests
 
         Assert.True(result);
         Assert.Equal(1, _uow.SaveCount);
+    }
+
+    [Fact]
+    public async Task GetSessionSeats_NonExistentSession_ReturnsNull()
+    {
+        Assert.Null(await _service.GetSessionSeatsAsync(99, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task GetSessionSeats_NoBookings_AllSeatsAvailable()
+    {
+        AddExisting(1, Start);
+        _seats.Items.Add(new Seat { Id = 1, HallId = 1, RowNumber = 1, SeatNumber = 1 });
+        _seats.Items.Add(new Seat { Id = 2, HallId = 1, RowNumber = 1, SeatNumber = 2, IsVip = true });
+        _seats.Items.Add(new Seat { Id = 3, HallId = 2, RowNumber = 1, SeatNumber = 1 });
+
+        var result = await _service.GetSessionSeatsAsync(1, CancellationToken.None);
+
+        Assert.NotNull(result);
+        Assert.Equal(2, result!.Count);
+        Assert.All(result, s => Assert.True(s.IsAvailable));
+    }
+
+    [Fact]
+    public async Task GetSessionSeats_ActiveBooking_SeatIsOccupied()
+    {
+        var session = AddExisting(1, Start);
+        _seats.Items.Add(new Seat { Id = 1, HallId = 1, RowNumber = 1, SeatNumber = 1 });
+        _seats.Items.Add(new Seat { Id = 2, HallId = 1, RowNumber = 1, SeatNumber = 2 });
+        session.Bookings.Add(new Booking { SessionId = 1, SeatId = 1, Status = BookingStatus.Active });
+
+        var result = await _service.GetSessionSeatsAsync(1, CancellationToken.None);
+
+        Assert.False(result!.Single(s => s.SeatId == 1).IsAvailable);
+        Assert.True(result!.Single(s => s.SeatId == 2).IsAvailable);
+    }
+
+    [Fact]
+    public async Task GetSessionSeats_CancelledBooking_SeatIsAvailable()
+    {
+        var session = AddExisting(1, Start);
+        _seats.Items.Add(new Seat { Id = 1, HallId = 1, RowNumber = 1, SeatNumber = 1 });
+        session.Bookings.Add(new Booking { SessionId = 1, SeatId = 1, Status = BookingStatus.Cancelled });
+
+        var result = await _service.GetSessionSeatsAsync(1, CancellationToken.None);
+
+        Assert.True(result!.Single().IsAvailable);
+    }
+
+    private sealed class FakeSeatRepository : ISeatRepository
+    {
+        public List<Seat> Items { get; } = new();
+
+        public Task<ICollection<Seat>> GetAllSeatsAsync(CancellationToken ct) =>
+            Task.FromResult<ICollection<Seat>>(Items.ToList());
+
+        public Task<ICollection<Seat>> GetSeatsByHallIdAsync(int hallId, CancellationToken ct) =>
+            Task.FromResult<ICollection<Seat>>(Items.Where(s => s.HallId == hallId).ToList());
+
+        public Task<Seat?> GetSeatByIdAsync(int id, CancellationToken ct) =>
+            Task.FromResult(Items.FirstOrDefault(s => s.Id == id));
+
+        public Task AddSeatAsync(Seat seat, CancellationToken ct) => Task.CompletedTask;
+        public void UpdateSeatAsync(Seat seat) { }
+        public void DeleteSeatAsync(Seat seat) { }
     }
 
     private sealed class FakeSessionRepository : ISessionRepository

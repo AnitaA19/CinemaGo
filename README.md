@@ -23,6 +23,7 @@ Layered solution: `Domain` (entities, DTOs, exceptions) → `Application` (servi
 | GET | `/api/bookings/{id}` | JWT (owner) or **Admin** |
 | DELETE | `/api/bookings/{id}` | JWT (owner) or **Admin** |
 | GET | `/api/bookings` | **Admin** |
+| GET | `/api/tickets/{id}` | JWT (ticket owner) or **Admin** |
 
 Send the JWT as `Authorization: Bearer <token>`. New users are registered as `Customer`; promote a user to `Admin` directly in the database.
 
@@ -70,10 +71,37 @@ The price is calculated on the server (`vipPrice` for VIP seats, otherwise `stan
 Double booking is prevented both by a service check and by a unique database index on active
 `(SessionId, SeatId)`, which also protects against simultaneous requests.
 
+## Tickets
+
+`GET /api/tickets/{id}` returns the details of a ticket (the `ticketCode`/`finalPrice` are also in the booking response).
+A customer can only read tickets of their own bookings (ownership is checked via the related booking); an Admin can read any ticket.
+
+```json
+{
+  "id": 5,
+  "bookingId": 15,
+  "ticketCode": "3f9c2a7e5b1d4c0f8a6e2d9b7c4a1e50",
+  "finalPrice": 20.00,
+  "movieTitle": "Dune",
+  "sessionStartsAt": "2026-11-01T18:00:00Z",
+  "hallName": "Hall 1",
+  "rowNumber": 4,
+  "seatNumber": 5,
+  "isVip": true
+}
+```
+
+| Status | Reason |
+|---|---|
+| 200 | ticket found |
+| 401 | no / invalid JWT |
+| 403 | ticket belongs to another user (non-admin) |
+| 404 | ticket not found |
+
 ## Behavior notes
 
 - Errors are mapped centrally (`GlobalExceptionHandler`) to ProblemDetails:
-  `NotFoundException`→404, `ConflictException`→409, `ValidationException`→400, `UnauthorizedAccessException`→401.
+  `ConflictException`→409, `ForbiddenException`→403,
 - DTOs use data annotations (`[Required]`, `[EmailAddress]`, `[Range]`, ...); invalid models return 400 automatically.
 - Session start times are UTC: values must carry a `Z`/offset and be in the future.
 - Known limitation: the session overlap check is read-then-write, so two simultaneous requests could both pass it.

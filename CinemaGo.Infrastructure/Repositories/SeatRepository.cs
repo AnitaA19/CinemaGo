@@ -18,6 +18,16 @@ public class SeatRepository : ISeatRepository
         return await _context.Seats.ToListAsync(cancellationToken);
     }
 
+    public async Task<ICollection<Seat>> GetSeatsByHallIdAsync(int hallId, CancellationToken cancellationToken)
+    {
+        return await _context.Seats
+            .Where(s => s.HallId == hallId)
+            .OrderBy(s => s.RowNumber)
+            .ThenBy(s => s.SeatNumber)
+            .AsNoTracking()
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<Seat?> GetSeatByIdAsync(int id, CancellationToken cancellationToken)
     {
         return await _context.Seats.FirstOrDefaultAsync(s => s.Id == id, cancellationToken);

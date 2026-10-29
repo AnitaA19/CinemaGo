@@ -33,12 +33,17 @@ public class GlobalExceptionHandler : IExceptionHandler
         {
             _logger.LogError(exception, "Unhandled exception");
         }
+        else
+        {
+            _logger.LogWarning("Request failed with {StatusCode}: {Message}", status, exception.Message);
+        }
 
         httpContext.Response.StatusCode = status;
 
-        await httpContext.Response.WriteAsJsonAsync(
-            new ProblemDetails
+        var problem = new ProblemDetails
             {
+                Type = $"https://httpstatuses.io/{status}",
+                Instance = httpContext.Request.Path,
                 Status = status,
                 Title = title,
                 Detail = exception is Microsoft.EntityFrameworkCore.DbUpdateException
@@ -46,8 +51,15 @@ public class GlobalExceptionHandler : IExceptionHandler
                     : status == StatusCodes.Status500InternalServerError
                     ? "An unexpected error occurred."
                     : exception.Message
-            },
-            cancellationToken);
+            };
+
+        problem.Extensions["traceId"] = httpContext.TraceIdentifier;
+
+        await httpContext.Response.WriteAsJsonAsync(
+            problem,
+            options: null,
+            contentType: "application/problem+json",
+            cancellationToken: cancellationToken);
 
         return true;
     }

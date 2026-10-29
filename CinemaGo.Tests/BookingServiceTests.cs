@@ -236,6 +236,9 @@ public class BookingServiceTests
         public Task<ICollection<Seat>> GetAllSeatsAsync(CancellationToken cancellationToken) =>
             Task.FromResult<ICollection<Seat>>(new List<Seat> { Seat });
 
+        public Task<ICollection<Seat>> GetSeatsByHallIdAsync(int hallId, CancellationToken cancellationToken) =>
+            Task.FromResult<ICollection<Seat>>(new List<Seat> { Seat });
+
         public Task<Seat?> GetSeatByIdAsync(int id, CancellationToken cancellationToken) =>
             Task.FromResult(id == Seat.Id ? Seat : null);
 
