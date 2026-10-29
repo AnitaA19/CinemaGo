@@ -22,7 +22,7 @@ public class GlobalExceptionHandler : IExceptionHandler
         {
             NotFoundException => StatusCodes.Status404NotFound,
             ConflictException => StatusCodes.Status409Conflict,
-            ValidationException => StatusCodes.Status400BadRequest,
+            CinemaGo.Domain.Exceptions.ValidationException or FluentValidation.ValidationException => StatusCodes.Status400BadRequest,
             ForbiddenException => StatusCodes.Status403Forbidden,
             Microsoft.EntityFrameworkCore.DbUpdateException => StatusCodes.Status409Conflict,
             UnauthorizedAccessException => StatusCodes.Status401Unauthorized,
@@ -50,9 +50,16 @@ public class GlobalExceptionHandler : IExceptionHandler
         {
             Success = false,
             Message = message,
-            Errors = exception is ValidationException
-                ? new Dictionary<string, string[]> { ["general"] = [message] }
-                : null
+            Errors = exception switch
+            {
+                FluentValidation.ValidationException validationException => validationException.Errors
+                    .GroupBy(error => string.IsNullOrWhiteSpace(error.PropertyName) ? "general" : error.PropertyName)
+                    .ToDictionary(
+                        group => group.Key,
+                        group => group.Select(error => error.ErrorMessage).Distinct().ToArray()),
+                CinemaGo.Domain.Exceptions.ValidationException => new Dictionary<string, string[]> { ["general"] = [message] },
+                _ => null
+            }
         };
 
         await httpContext.Response.WriteAsJsonAsync(

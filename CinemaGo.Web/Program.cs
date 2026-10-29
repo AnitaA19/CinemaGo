@@ -3,6 +3,7 @@ using System.Text;
 using CinemaGo.Application.Profiles;
 using CinemaGo.Application.Services.Implementations;
 using CinemaGo.Application.Services.Interfaces;
+using CinemaGo.Application.Validation;
 using CinemaGo.Domain.Entities;
 using CinemaGo.Domain.Intefraces;
 using CinemaGo.Infrastructure.Data;
@@ -10,6 +11,7 @@ using CinemaGo.Infrastructure.Repositories;
 using CinemaGo.Infrastructure.UnitOfWork;
 using CinemaGo.Web.Middleware;
 using CinemaGo.Web.Responses;
+using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Identity;
@@ -46,6 +48,8 @@ namespace Cinema
             builder.Services.AddScoped<IMovieService, MovieService>();
             builder.Services.AddScoped<ISessionService, SessionService>();
             builder.Services.AddScoped<IAuthService, AuthService>();
+            builder.Services.AddScoped<FluentValidationActionFilter>();
+            builder.Services.AddValidatorsFromAssemblyContaining<CreateMovieDtoValidator>();
 
             builder.Services.AddExceptionHandler<CinemaGo.Web.Middleware.GlobalExceptionHandler>();
             builder.Services.AddProblemDetails();
@@ -107,7 +111,11 @@ namespace Cinema
 
             builder.Services.AddAuthorization();
 
-            builder.Services.AddControllers()
+            builder.Services.AddControllers(options =>
+                {
+                    options.SuppressImplicitRequiredAttributeForNonNullableReferenceTypes = true;
+                    options.Filters.AddService<FluentValidationActionFilter>(-3000);
+                })
                 .ConfigureApiBehaviorOptions(options =>
                 {
                     options.InvalidModelStateResponseFactory = context =>
