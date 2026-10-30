@@ -26,6 +26,7 @@ public class SessionServiceTests
         _service = new SessionService(_sessions, _movies, _halls, _seats, _uow, mapper);
 
         _movies.Items[1] = new Movie { Id = 1, Title = "Dune", DurationMinutes = 120 };
+        _sessions.Movies = _movies.Items;
         _halls.Items[1] = new Hall { Id = 1, Name = "Hall A" };
     }
 
@@ -53,6 +54,30 @@ public class SessionServiceTests
         };
         _sessions.Items.Add(session);
         return session;
+    }
+
+    [Fact]
+    public async Task AddSession_ConcurrentOverlappingRequests_OnlyOneSucceeds()
+    {
+        var tasks = Enumerable.Range(0, 5)
+            .Select(_ => Task.Run(async () =>
+            {
+                try
+                {
+                    await _service.AddSessionAsync(NewCreateDto(), CancellationToken.None);
+                    return true;
+                }
+                catch (ConflictException)
+                {
+                    return false;
+                }
+            }))
+            .ToList();
+
+        var results = await Task.WhenAll(tasks);
+
+        Assert.Equal(1, results.Count(r => r));
+        Assert.Single(_sessions.Items);
     }
 
     [Fact]
@@ -104,6 +129,121 @@ public class SessionServiceTests
 
         await Assert.ThrowsAsync<ConflictException>(
             () => _service.AddSessionAsync(NewCreateDto(Start.AddMinutes(60)), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task AddSession_StartsExactlyWhenPreviousEnds_Succeeds()
+    {
+        AddExisting(1, Start);
+
+        var result = await _service.AddSessionAsync(
+            NewCreateDto(Start.AddMinutes(120)), CancellationToken.None);
+
+        Assert.NotNull(result);
+        Assert.Equal(2, _sessions.Items.Count);
+    }
+
+    [Fact]
+    public async Task AddSession_EndsIntoNextSession_ThrowsConflict()
+    {
+        AddExisting(1, Start.AddMinutes(60));
+
+        await Assert.ThrowsAsync<ConflictException>(
+            () => _service.AddSessionAsync(NewCreateDto(Start), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task AddSession_OverlapsCancelledSession_Succeeds()
+    {
+        AddExisting(1, Start).Status = SessionStatus.Cancelled;
+
+        await _service.AddSessionAsync(NewCreateDto(), CancellationToken.None);
+
+        Assert.Equal(2, _sessions.Items.Count);
+    }
+
+    [Fact]
+    public async Task AddSession_SameTimeInOtherHall_Succeeds()
+    {
+        _halls.Items[2] = new Hall { Id = 2, Name = "Hall B" };
+        AddExisting(1, Start);
+        var dto = NewCreateDto();
+        dto.HallId = 2;
+
+        await _service.AddSessionAsync(dto, CancellationToken.None);
+
+        Assert.Equal(2, _sessions.Items.Count);
+    }
+
+    [Fact]
+    public async Task AddSession_VipPriceLowerThanStandard_ThrowsValidation()
+    {
+        var dto = NewCreateDto();
+        dto.StandardPrice = 20;
+        dto.VipPrice = 10;
+
+        await Assert.ThrowsAsync<ValidationException>(
+            () => _service.AddSessionAsync(dto, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task AddSession_DefaultStartTime_ThrowsValidation()
+    {
+        var dto = NewCreateDto();
+        dto.StartsAt = default;
+
+        await Assert.ThrowsAsync<ValidationException>(
+            () => _service.AddSessionAsync(dto, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task AddSession_NonExistentHall_ThrowsNotFound()
+    {
+        var dto = NewCreateDto();
+        dto.HallId = 99;
+
+        await Assert.ThrowsAsync<NotFoundException>(
+            () => _service.AddSessionAsync(dto, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task UpdateSession_OverlappingAnotherSession_ThrowsConflict()
+    {
+        AddExisting(1, Start);
+        AddExisting(2, Start.AddDays(1));
+        var dto = new UpdateSessionDTO { MovieId = 1, HallId = 1, StartsAt = Start.AddMinutes(30), StandardPrice = 10, VipPrice = 20 };
+
+        await Assert.ThrowsAsync<ConflictException>(
+            () => _service.UpdateSessionAsync(2, dto, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task UpdateSession_OverlappingItself_Succeeds()
+    {
+        AddExisting(1, Start);
+        var dto = new UpdateSessionDTO { MovieId = 1, HallId = 1, StartsAt = Start.AddMinutes(30), StandardPrice = 10, VipPrice = 20 };
+
+        var result = await _service.UpdateSessionAsync(1, dto, CancellationToken.None);
+
+        Assert.NotNull(result);
+    }
+
+    [Fact]
+    public async Task UpdateSession_InvalidPrices_ThrowsValidation()
+    {
+        AddExisting(1, Start);
+        var dto = new UpdateSessionDTO { MovieId = 1, HallId = 1, StartsAt = Start, StandardPrice = 20, VipPrice = 10 };
+
+        await Assert.ThrowsAsync<ValidationException>(
+            () => _service.UpdateSessionAsync(1, dto, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task UpdateSession_Unknown_ReturnsNull()
+    {
+        var dto = new UpdateSessionDTO { MovieId = 1, HallId = 1, StartsAt = Start, StandardPrice = 10, VipPrice = 20 };
+
+        Assert.Null(await _service.UpdateSessionAsync(99, dto, CancellationToken.None));
     }
 
     [Fact]
@@ -221,6 +361,8 @@ public class SessionServiceTests
     {
         public List<Session> Items { get; } = new();
 
+        public Dictionary<int, Movie>? Movies { get; set; }
+
         public Task<ICollection<Session>> GetAllSessionsAsync(CancellationToken ct) =>
             Task.FromResult<ICollection<Session>>(Items.ToList());
 
@@ -239,11 +381,17 @@ public class SessionServiceTests
         public Task<Session?> GetSessionByIdAsync(int id, CancellationToken ct) =>
             Task.FromResult(Items.FirstOrDefault(s => s.Id == id));
 
-        public Task<ICollection<Session>> GetSessionsByHallAsync(int hallId, CancellationToken ct) =>
-            Task.FromResult<ICollection<Session>>(Items.Where(s => s.HallId == hallId).ToList());
+        public async Task<ICollection<Session>> GetSessionsByHallAsync(int hallId, CancellationToken ct)
+        {
+            var snapshot = Items.Where(s => s.HallId == hallId).ToList();
+            // Widen the check-then-write window so unprotected callers would interleave.
+            await Task.Delay(50, ct);
+            return snapshot;
+        }
 
         public Task AddSessionAsync(Session session, CancellationToken ct)
         {
+            session.Movie ??= Movies?.GetValueOrDefault(session.MovieId)!;
             Items.Add(session);
             return Task.CompletedTask;
         }
@@ -289,6 +437,22 @@ public class SessionServiceTests
     private sealed class FakeUnitOfWork : IUnitOfWork
     {
         public int SaveCount { get; private set; }
+
+        // Simulates the database lock a Serializable transaction holds until commit.
+        private readonly SemaphoreSlim _gate = new(1, 1);
+
+        public async Task<T> ExecuteInSerializableTransactionAsync<T>(Func<Task<T>> action, CancellationToken cancellationToken = default)
+        {
+            await _gate.WaitAsync(cancellationToken);
+            try
+            {
+                return await action();
+            }
+            finally
+            {
+                _gate.Release();
+            }
+        }
 
         public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
         {

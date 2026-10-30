@@ -164,38 +164,41 @@ public class SessionService : ISessionService
 
         var startsAt = NormalizeStartTime(dto.StartsAt);
 
-        await EnsureNoOverlapAsync(
-            dto.HallId,
-            startsAt,
-            movie.DurationMinutes,
-            null,
-            cancellationToken);
-
-        var session = new Session
+        return await _unitOfWork.ExecuteInSerializableTransactionAsync(async () =>
         {
-            MovieId = movie.Id,
-            HallId = hall.Id,
-            StartsAt = startsAt,
-            StandardPrice = dto.StandardPrice,
-            VipPrice = dto.VipPrice,
-            Status = SessionStatus.Scheduled
-        };
+            await EnsureNoOverlapAsync(
+                dto.HallId,
+                startsAt,
+                movie.DurationMinutes,
+                null,
+                cancellationToken);
 
-        await _sessionRepository.AddSessionAsync(
-            session, cancellationToken);
+            var session = new Session
+            {
+                MovieId = movie.Id,
+                HallId = hall.Id,
+                StartsAt = startsAt,
+                StandardPrice = dto.StandardPrice,
+                VipPrice = dto.VipPrice,
+                Status = SessionStatus.Scheduled
+            };
 
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+            await _sessionRepository.AddSessionAsync(
+                session, cancellationToken);
 
-        var createdSession = await _sessionRepository
-            .GetSessionByIdAsync(session.Id, cancellationToken);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        if (createdSession is null)
-        {
-            throw new InvalidOperationException(
-                "The session was saved but could not be retrieved.");
-        }
+            var createdSession = await _sessionRepository
+                .GetSessionByIdAsync(session.Id, cancellationToken);
 
-        return _mapper.Map<SessionDTO>(createdSession);
+            if (createdSession is null)
+            {
+                throw new InvalidOperationException(
+                    "The session was saved but could not be retrieved.");
+            }
+
+            return _mapper.Map<SessionDTO>(createdSession);
+        }, cancellationToken);
     }
 
     public async Task<SessionDTO?> UpdateSessionAsync(
@@ -237,27 +240,30 @@ public class SessionService : ISessionService
 
         var startsAt = NormalizeStartTime(dto.StartsAt);
 
-        await EnsureNoOverlapAsync(
-            dto.HallId,
-            startsAt,
-            movie.DurationMinutes,
-            id,
-            cancellationToken);
+        return await _unitOfWork.ExecuteInSerializableTransactionAsync(async () =>
+        {
+            await EnsureNoOverlapAsync(
+                dto.HallId,
+                startsAt,
+                movie.DurationMinutes,
+                id,
+                cancellationToken);
 
-        session.MovieId = movie.Id;
-        session.HallId = hall.Id;
-        session.StartsAt = startsAt;
-        session.StandardPrice = dto.StandardPrice;
-        session.VipPrice = dto.VipPrice;
+            session.MovieId = movie.Id;
+            session.HallId = hall.Id;
+            session.StartsAt = startsAt;
+            session.StandardPrice = dto.StandardPrice;
+            session.VipPrice = dto.VipPrice;
 
-        _sessionRepository.UpdateSessionAsync(session);
+            _sessionRepository.UpdateSessionAsync(session);
 
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        var updatedSession = await _sessionRepository
-            .GetSessionByIdAsync(id, cancellationToken);
+            var updatedSession = await _sessionRepository
+                .GetSessionByIdAsync(id, cancellationToken);
 
-        return updatedSession is null ? null : _mapper.Map<SessionDTO>(updatedSession);
+            return updatedSession is null ? null : _mapper.Map<SessionDTO>(updatedSession);
+        }, cancellationToken);
     }
 
     public async Task<bool> DeleteSessionAsync(

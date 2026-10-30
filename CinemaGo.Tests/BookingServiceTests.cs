@@ -199,6 +199,35 @@ public class BookingServiceTests
         Assert.Equal(BookingStatus.Cancelled, booking.Status);
     }
 
+    [Fact]
+    public async Task CancelBooking_AlreadyCancelled_ThrowsValidation()
+    {
+        var booking = await SeedBookingAsync(ownerId: 7);
+        await _service.CancelBookingAsync(
+            booking.Id, userId: 7, isAdmin: false, CancellationToken.None);
+
+        await Assert.ThrowsAsync<ValidationException>(() => _service.CancelBookingAsync(
+            booking.Id, userId: 7, isAdmin: false, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task CancelBooking_Unknown_ThrowsNotFound()
+    {
+        await Assert.ThrowsAsync<NotFoundException>(() => _service.CancelBookingAsync(
+            999, userId: 7, isAdmin: false, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task BookTicket_CreatesTicketWithCodeLinkedToBooking()
+    {
+        await SeedBookingAsync(ownerId: 7);
+
+        var ticket = _bookings.AddedBooking!.Ticket;
+        Assert.NotNull(ticket);
+        Assert.False(string.IsNullOrWhiteSpace(ticket.TicketCode));
+        Assert.Same(_bookings.AddedBooking, ticket.Booking);
+    }
+
     private async Task<Booking> SeedBookingAsync(int ownerId)
     {
         await _service.BookTicketAsync(
@@ -288,6 +317,9 @@ public class BookingServiceTests
     private sealed class FakeUnitOfWork : IUnitOfWork
     {
         public int SaveCount { get; private set; }
+
+        public Task<T> ExecuteInSerializableTransactionAsync<T>(Func<Task<T>> action, CancellationToken cancellationToken = default) =>
+            action();
 
         public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
         {
