@@ -1,7 +1,9 @@
 using AutoMapper;
 using CinemaGo.Application.Profiles;
 using CinemaGo.Application.Services.Implementations;
+using CinemaGo.Domain.DTOs.BookingDTOs;
 using CinemaGo.Domain.DTOs.SessionDTOs;
+using CinemaGo.Domain.Enums;
 using CinemaGo.Domain.Entities;
 using CinemaGo.Domain.Exceptions;
 using CinemaGo.Infrastructure.Data;
@@ -140,6 +142,66 @@ public sealed class SessionConcurrencySqlServerTests : IDisposable
 
         await using var verify = CreateContext();
         Assert.Equal(2, await verify.Sessions.CountAsync());
+    }
+
+    [SqlServerFact]
+    public async Task BookTicket_ParallelRequestsForSameSeat_OnlyOneSucceeds()
+    {
+        using (var context = CreateContext())
+        {
+            context.Database.EnsureCreated();
+            context.Movies.Add(new Movie { Title = "Dune", DurationMinutes = 120, AgeRating = 12 });
+            context.Halls.Add(new Hall { Name = "Hall A", Capacity = 10 });
+            context.SaveChanges();
+            context.Seats.Add(new Seat { HallId = 1, RowNumber = 1, SeatNumber = 1 });
+            const int users = 8;
+            for (var i = 1; i <= users; i++)
+            {
+                context.Users.Add(new User { Username = "user" + i, Email = $"user{i}@x.com", PasswordHash = "h" });
+            }
+
+            context.Sessions.Add(new Session
+            {
+                MovieId = 1, HallId = 1, StartsAt = DateTime.UtcNow.AddDays(1), StandardPrice = 10, VipPrice = 20
+            });
+            context.SaveChanges();
+        }
+
+        var bookingMapper = new MapperConfiguration(
+            c => c.AddProfile<BookingProfile>(), NullLoggerFactory.Instance).CreateMapper();
+        var startGate = new TaskCompletionSource();
+
+        var tasks = Enumerable.Range(1, 8).Select(userId => Task.Run(async () =>
+        {
+            await using var context = CreateContext();
+            var service = new BookingService(
+                new BookingRepository(context),
+                new SessionRepository(context),
+                new SeatRepository(context),
+                new CinemaGo.Infrastructure.UnitOfWork.UnitOfWork(context),
+                bookingMapper);
+
+            await startGate.Task;
+
+            try
+            {
+                await service.BookTicketAsync(new CreateBookingDTO { SessionId = 1, SeatId = 1 }, userId, CancellationToken.None);
+                return true;
+            }
+            catch (ConflictException)
+            {
+                return false;
+            }
+        })).ToList();
+
+        startGate.SetResult();
+        var results = await Task.WhenAll(tasks);
+
+        Assert.Equal(1, results.Count(booked => booked));
+
+        await using var verify = CreateContext();
+        Assert.Equal(1, await verify.Bookings.CountAsync(b => b.Status == BookingStatus.Active));
+        Assert.Equal(1, await verify.Tickets.CountAsync());
     }
 
     public void Dispose()

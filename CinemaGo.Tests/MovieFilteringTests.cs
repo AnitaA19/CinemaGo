@@ -118,6 +118,45 @@ public sealed class MovieFilteringTests : IDisposable
     }
 
     [Fact]
+    public async Task NoMatches_ReturnsEmptyResultWithZeroTotals()
+    {
+        var result = await _service.GetMoviesAsync("nonexistent", null, 1, 10, CancellationToken.None);
+
+        Assert.Empty(result.Movies);
+        Assert.Equal(0, result.TotalCount);
+        Assert.Equal(0, result.TotalPages);
+    }
+
+    [Fact]
+    public async Task UnknownGenre_ReturnsEmptyResult()
+    {
+        var result = await _service.GetMoviesAsync(null, 999, 1, 10, CancellationToken.None);
+
+        Assert.Empty(result.Movies);
+        Assert.Equal(0, result.TotalCount);
+    }
+
+    [Fact]
+    public async Task Pages_AreOrderedByTitleWithoutOverlap()
+    {
+        var first = await _service.GetMoviesAsync(null, null, 1, 10, CancellationToken.None);
+        var second = await _service.GetMoviesAsync(null, null, 2, 10, CancellationToken.None);
+
+        var titles = first.Movies.Concat(second.Movies).Select(m => m.Title).ToList();
+        Assert.Equal(20, titles.Distinct().Count());
+        Assert.Equal(titles.OrderBy(t => t, StringComparer.Ordinal).ToList(), titles);
+    }
+
+    [Fact]
+    public async Task MaxPageSize_ReturnsEverythingOnOnePage()
+    {
+        var result = await _service.GetMoviesAsync(null, null, 1, 100, CancellationToken.None);
+
+        Assert.Equal(25, result.Movies.Count);
+        Assert.Equal(1, result.TotalPages);
+    }
+
+    [Fact]
     public async Task InvalidGenreId_ThrowsValidationException()
     {
         await Assert.ThrowsAsync<ValidationException>(() =>
