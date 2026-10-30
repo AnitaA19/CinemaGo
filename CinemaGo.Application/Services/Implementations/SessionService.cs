@@ -1,5 +1,6 @@
 using AutoMapper;
 using CinemaGo.Application.Services.Interfaces;
+using CinemaGo.Domain.Constants;
 using CinemaGo.Domain.DTOs.SessionDTOs;
 using CinemaGo.Domain.Entities;
 using CinemaGo.Domain.Enums;
@@ -43,6 +44,57 @@ public class SessionService : ISessionService
             .Select(_mapper.Map<SessionDTO>)
             .ToList();
     }
+
+    public async Task<PagedSessionsDTO> GetSessionsAsync(
+        int? movieId,
+        DateTime? dateFrom,
+        DateTime? dateTo,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken)
+    {
+        if (page < 1)
+        {
+            throw new ValidationException("Page must be greater than or equal to 1.");
+        }
+
+        if (pageSize < 1 || pageSize > PaginationLimits.MaxPageSize)
+        {
+            throw new ValidationException(
+                $"Page size must be between 1 and {PaginationLimits.MaxPageSize}.");
+        }
+
+        if (movieId.HasValue && movieId.Value < 1)
+        {
+            throw new ValidationException("Movie id must be greater than zero.");
+        }
+
+        var from = dateFrom.HasValue ? ToUtc(dateFrom.Value) : (DateTime?)null;
+        var to = dateTo.HasValue ? ToUtc(dateTo.Value) : (DateTime?)null;
+
+        if (from.HasValue && to.HasValue && from > to)
+        {
+            throw new ValidationException("dateFrom cannot be later than dateTo.");
+        }
+
+        var (sessions, totalCount) = await _sessionRepository.GetSessionsPagedAsync(
+            movieId, from, to, page, pageSize, cancellationToken);
+
+        return new PagedSessionsDTO
+        {
+            Sessions = sessions.Select(_mapper.Map<SessionDTO>).ToList(),
+            Page = page,
+            PageSize = pageSize,
+            TotalCount = totalCount,
+            TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize)
+        };
+    }
+
+    // Unspecified kinds are treated as UTC, matching how start times are stored.
+    private static DateTime ToUtc(DateTime value) =>
+        value.Kind == DateTimeKind.Unspecified
+            ? DateTime.SpecifyKind(value, DateTimeKind.Utc)
+            : value.ToUniversalTime();
 
     public async Task<SessionDTO?> GetSessionByIdAsync(
         int id,

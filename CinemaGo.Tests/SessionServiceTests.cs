@@ -224,6 +224,18 @@ public class SessionServiceTests
         public Task<ICollection<Session>> GetAllSessionsAsync(CancellationToken ct) =>
             Task.FromResult<ICollection<Session>>(Items.ToList());
 
+        public Task<(ICollection<Session> Sessions, int TotalCount)> GetSessionsPagedAsync(int? movieId, DateTime? dateFrom, DateTime? dateTo, int page, int pageSize, CancellationToken ct)
+        {
+            var query = Items
+                .Where(s => !movieId.HasValue || s.MovieId == movieId)
+                .Where(s => !dateFrom.HasValue || s.StartsAt >= dateFrom)
+                .Where(s => !dateTo.HasValue || s.StartsAt <= dateTo)
+                .OrderBy(s => s.StartsAt).ThenBy(s => s.Id)
+                .ToList();
+            return Task.FromResult<(ICollection<Session>, int)>(
+                (query.Skip((page - 1) * pageSize).Take(pageSize).ToList(), query.Count));
+        }
+
         public Task<Session?> GetSessionByIdAsync(int id, CancellationToken ct) =>
             Task.FromResult(Items.FirstOrDefault(s => s.Id == id));
 

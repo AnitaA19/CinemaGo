@@ -8,6 +8,14 @@ public interface ISessionRepository
     Task<ICollection<Session>> GetAllSessionsAsync(
         CancellationToken cancellationToken);
 
+    Task<(ICollection<Session> Sessions, int TotalCount)> GetSessionsPagedAsync(
+        int? movieId,
+        DateTime? dateFrom,
+        DateTime? dateTo,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken);
+
     Task<Session?> GetSessionByIdAsync(
         int id,
         CancellationToken cancellationToken);

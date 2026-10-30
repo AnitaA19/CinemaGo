@@ -7,6 +7,14 @@ public interface ISessionService
     Task<ICollection<SessionDTO>> GetAllSessionsAsync(
         CancellationToken cancellationToken);
 
+    Task<PagedSessionsDTO> GetSessionsAsync(
+        int? movieId,
+        DateTime? dateFrom,
+        DateTime? dateTo,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken);
+
     Task<SessionDTO?> GetSessionByIdAsync(
         int id,
         CancellationToken cancellationToken);

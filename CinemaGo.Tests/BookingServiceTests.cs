@@ -216,6 +216,9 @@ public class BookingServiceTests
         public Task<ICollection<Session>> GetAllSessionsAsync(CancellationToken cancellationToken) =>
             Task.FromResult<ICollection<Session>>(new List<Session> { Session });
 
+        public Task<(ICollection<Session> Sessions, int TotalCount)> GetSessionsPagedAsync(int? movieId, DateTime? dateFrom, DateTime? dateTo, int page, int pageSize, CancellationToken cancellationToken) =>
+            Task.FromResult<(ICollection<Session>, int)>((new List<Session> { Session }, 1));
+
         public Task<Session?> GetSessionByIdAsync(int id, CancellationToken cancellationToken) =>
             Task.FromResult(id == Session.Id ? Session : null);
 

@@ -1,4 +1,5 @@
 using CinemaGo.Application.Services.Interfaces;
+using CinemaGo.Domain.Constants;
 using CinemaGo.Domain.DTOs.SessionDTOs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -17,9 +18,16 @@ public class SessionsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<ICollection<SessionDTO>>> GetAll(CancellationToken cancellationToken)
+    public async Task<ActionResult<PagedSessionsDTO>> GetAll(
+        [FromQuery] int? movieId,
+        [FromQuery] DateTime? dateFrom,
+        [FromQuery] DateTime? dateTo,
+        CancellationToken cancellationToken,
+        [FromQuery] int page = PaginationLimits.DefaultPage,
+        [FromQuery] int pageSize = PaginationLimits.DefaultPageSize)
     {
-        return Ok(await _sessionService.GetAllSessionsAsync(cancellationToken));
+        return Ok(await _sessionService.GetSessionsAsync(
+            movieId, dateFrom, dateTo, page, pageSize, cancellationToken));
     }
 
     [HttpGet("{id:int}")]
