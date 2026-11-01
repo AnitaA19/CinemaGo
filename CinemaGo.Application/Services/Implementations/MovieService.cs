@@ -1,4 +1,4 @@
-using AutoMapper;
+﻿using AutoMapper;
 using CinemaGo.Domain.Constants;
 using CinemaGo.Domain.Exceptions;
 using CinemaGo.Domain.Intefraces;
@@ -11,12 +11,14 @@ namespace CinemaGo.Application.Services.Implementations
     public class MovieService : IMovieService
     {
         private readonly IMovieRepository _movieRepository;
+        private readonly IGenreRepository _genreRepository;
         private readonly IUnitOfWork _unitOfWork;
         private readonly IMapper _mapper;
 
-        public MovieService(IMovieRepository movieRepository, IUnitOfWork unitOfWork, IMapper mapper)
+        public MovieService(IMovieRepository movieRepository, IGenreRepository genreRepository, IUnitOfWork unitOfWork, IMapper mapper)
         {
             _movieRepository = movieRepository;
+            _genreRepository = genreRepository;
             _unitOfWork = unitOfWork;
             _mapper = mapper;
         }
@@ -35,6 +37,21 @@ namespace CinemaGo.Application.Services.Implementations
             {
                 throw new ValidationException("Movie age rating must be between 0 and 21.");
             }
+        }
+
+        private async Task<List<Genre>> ResolveGenresAsync(IEnumerable<int>? genreIds, CancellationToken cancellationToken)
+        {
+            var genres = new List<Genre>();
+            foreach (var genreId in (genreIds ?? Enumerable.Empty<int>()).Distinct())
+            {
+                var genre = await _genreRepository.GetGenreByIdAsync(genreId, cancellationToken);
+                if (genre == null)
+                {
+                    throw new ValidationException($"Genre with ID {genreId} does not exist.");
+                }
+                genres.Add(genre);
+            }
+            return genres;
         }
 
         public async Task<ICollection<MovieDTO>> GetAllMoviesAsync(CancellationToken cancellationToken)
@@ -81,6 +98,10 @@ namespace CinemaGo.Application.Services.Implementations
         {
             var movie = _mapper.Map<CreateMovieDTO, Movie>(createMovieDto);
             ValidateMovie(movie);
+            foreach (var genre in await ResolveGenresAsync(createMovieDto.GenreIds, cancellationToken))
+            {
+                movie.MovieGenres.Add(new MovieGenre { Genre = genre, GenreId = genre.Id });
+            }
             await _movieRepository.AddMovieAsync(movie, cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             return _mapper.Map<Movie, MovieDTO>(movie);
@@ -97,6 +118,18 @@ namespace CinemaGo.Application.Services.Implementations
             existingMovie.DurationMinutes = updateMovieDto.DurationMinutes;
             existingMovie.AgeRating = updateMovieDto.AgeRating;
             ValidateMovie(existingMovie);
+
+            var genres = await ResolveGenresAsync(updateMovieDto.GenreIds, cancellationToken);
+            var wantedIds = genres.Select(g => g.Id).ToHashSet();
+            foreach (var stale in existingMovie.MovieGenres.Where(mg => !wantedIds.Contains(mg.GenreId)).ToList())
+            {
+                existingMovie.MovieGenres.Remove(stale);
+            }
+            foreach (var genre in genres.Where(g => existingMovie.MovieGenres.All(mg => mg.GenreId != g.Id)))
+            {
+                existingMovie.MovieGenres.Add(new MovieGenre { MovieId = existingMovie.Id, Genre = genre, GenreId = genre.Id });
+            }
+
             _movieRepository.UpdateMovieAsync(existingMovie);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             return _mapper.Map<Movie, MovieDTO>(existingMovie);
@@ -115,3 +148,5 @@ namespace CinemaGo.Application.Services.Implementations
         }
     }
 }
+
+

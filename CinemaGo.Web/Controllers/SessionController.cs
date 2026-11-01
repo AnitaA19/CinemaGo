@@ -1,4 +1,4 @@
-using CinemaGo.Application.Services.Interfaces;
+﻿using CinemaGo.Application.Services.Interfaces;
 using CinemaGo.Domain.Constants;
 using CinemaGo.Domain.DTOs.SessionDTOs;
 using Microsoft.AspNetCore.Authorization;
@@ -57,6 +57,14 @@ public class SessionsController : ControllerBase
     public async Task<ActionResult<SessionDTO>> Update(int id, UpdateSessionDTO dto, CancellationToken cancellationToken)
     {
         var session = await _sessionService.UpdateSessionAsync(id, dto, cancellationToken);
+        return session is null ? NotFound() : Ok(session);
+    }
+
+    [HttpPost("{id:int}/cancel")]
+    [Authorize(Roles = "Admin")]
+    public async Task<ActionResult<SessionDTO>> Cancel(int id, CancellationToken cancellationToken)
+    {
+        var session = await _sessionService.CancelSessionAsync(id, cancellationToken);
         return session is null ? NotFound() : Ok(session);
     }
 

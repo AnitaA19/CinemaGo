@@ -1,4 +1,4 @@
-using AutoMapper;
+﻿using AutoMapper;
 using CinemaGo.Application.Profiles;
 using CinemaGo.Application.Services.Implementations;
 using CinemaGo.Domain.Entities;
@@ -40,7 +40,7 @@ public sealed class MovieFilteringTests : IDisposable
         _context.SaveChanges();
 
         var mapper = new MapperConfiguration(c => c.AddProfile<MovieMapper>(), NullLoggerFactory.Instance).CreateMapper();
-        _service = new MovieService(new MovieRepository(_context), new UnitOfWork(_context), mapper);
+        _service = new MovieService(new MovieRepository(_context), new GenreRepository(_context), new UnitOfWork(_context), mapper);
     }
 
     public void Dispose()
@@ -163,3 +163,4 @@ public sealed class MovieFilteringTests : IDisposable
             _service.GetMoviesAsync(null, 0, 1, 10, CancellationToken.None));
     }
 }
+

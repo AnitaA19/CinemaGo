@@ -1,4 +1,4 @@
-namespace CinemaGo.Domain.DTOs.MovieDTOs;
+﻿namespace CinemaGo.Domain.DTOs.MovieDTOs;
 
 public class CreateMovieDTO
 {
@@ -7,4 +7,6 @@ public class CreateMovieDTO
     public int DurationMinutes { get; set; }
 
     public int AgeRating { get; set; }
+
+    public List<int> GenreIds { get; set; } = new();
 }

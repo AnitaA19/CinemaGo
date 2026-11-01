@@ -1,4 +1,4 @@
-using AutoMapper;
+﻿using AutoMapper;
 using CinemaGo.Application.Services.Interfaces;
 using CinemaGo.Domain.Constants;
 using CinemaGo.Domain.DTOs.SessionDTOs;
@@ -289,6 +289,46 @@ public class SessionService : ISessionService
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return true;
+    }
+
+    public async Task<SessionDTO?> CancelSessionAsync(
+        int id,
+        CancellationToken cancellationToken)
+    {
+        return await _unitOfWork.ExecuteInSerializableTransactionAsync(async () =>
+        {
+            var session = await _sessionRepository
+                .GetSessionByIdAsync(id, cancellationToken);
+
+            if (session is null)
+            {
+                return null;
+            }
+
+            if (session.Status == SessionStatus.Cancelled)
+            {
+                throw new ConflictException("The session is already cancelled.");
+            }
+
+            if (session.Status == SessionStatus.Completed)
+            {
+                throw new ValidationException("A completed session cannot be cancelled.");
+            }
+
+            session.Status = SessionStatus.Cancelled;
+
+            foreach (var booking in session.Bookings
+                .Where(b => b.Status == BookingStatus.Active))
+            {
+                booking.Status = BookingStatus.Cancelled;
+            }
+
+            _sessionRepository.UpdateSessionAsync(session);
+
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            return _mapper.Map<SessionDTO>(session);
+        }, cancellationToken);
     }
 
     private async Task EnsureNoOverlapAsync(

@@ -1,4 +1,4 @@
-using CinemaGo.Domain.Entities;
+﻿using CinemaGo.Domain.Entities;
 using CinemaGo.Domain.Intefraces;
 using CinemaGo.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -30,7 +30,7 @@ public class SeatRepository : ISeatRepository
 
     public async Task<Seat?> GetSeatByIdAsync(int id, CancellationToken cancellationToken)
     {
-        return await _context.Seats.FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
+        return await _context.Seats.Include(s => s.Bookings).FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
     }
 
     public async Task AddSeatAsync(Seat seat, CancellationToken cancellationToken)
@@ -48,3 +48,4 @@ public class SeatRepository : ISeatRepository
         _context.Seats.Remove(seat);
     }
 }
+

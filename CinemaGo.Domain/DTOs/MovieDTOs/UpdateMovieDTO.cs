@@ -1,5 +1,6 @@
-namespace CinemaGo.Domain.DTOs.MovieDTOs;
+﻿namespace CinemaGo.Domain.DTOs.MovieDTOs;
 
+// GenreIds replaces the movie's current genres (send an empty list to remove all).
 public class UpdateMovieDTO
 {
     public string Title { get; set; } = string.Empty;
@@ -7,4 +8,6 @@ public class UpdateMovieDTO
     public int DurationMinutes { get; set; }
 
     public int AgeRating { get; set; }
+
+    public List<int> GenreIds { get; set; } = new();
 }

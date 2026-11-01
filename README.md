@@ -1,4 +1,4 @@
-# CinemaGo
+﻿# CinemaGo
 
 ASP.NET Core Web API (.NET 10) for a cinema: movies and showtimes (sessions).
 Layered solution: `Domain` (entities, DTOs, exceptions) → `Application` (services) → `Infrastructure` (EF Core / SQL Server) → `Web` (controllers).
@@ -17,7 +17,9 @@ Layered solution: `Domain` (entities, DTOs, exceptions) → `Application` (servi
 |---|---|---|
 | POST | `/api/auth/register`, `/api/auth/login` | anonymous |
 | GET | `/api/movies`, `/api/movies/{id}`, `/api/sessions`, `/api/sessions/{id}` | anonymous |
-| POST/PUT/DELETE | `/api/movies`, `/api/sessions` | **Admin** |
+| GET | `/api/genres`, `/api/genres/{id}`, `/api/halls`, `/api/halls/{id}`, `/api/seats` (`?hallId=`), `/api/seats/{id}` | anonymous |
+| POST/PUT/DELETE | `/api/movies`, `/api/sessions`, `/api/genres`, `/api/halls`, `/api/seats` | **Admin** |
+| POST | `/api/sessions/{id}/cancel` | **Admin** |
 | POST | `/api/bookings` | JWT (any user) |
 | GET | `/api/bookings/my` | JWT (own bookings) |
 | GET | `/api/bookings/{id}` | JWT (owner) or **Admin** |
@@ -25,7 +27,7 @@ Layered solution: `Domain` (entities, DTOs, exceptions) → `Application` (servi
 | GET | `/api/bookings` | **Admin** |
 | GET | `/api/tickets/{id}` | JWT (ticket owner) or **Admin** |
 
-Send the JWT as `Authorization: Bearer <token>`. New users are registered as `Customer`; promote a user to `Admin` directly in the database.
+Send the JWT as `Authorization: Bearer <token>`. Public registration always creates a `Customer`; the role cannot be supplied by the client. See [Initial Admin](#initial-admin).
 
 ## Bookings
 
@@ -98,11 +100,140 @@ A customer can only read tickets of their own bookings (ownership is checked via
 | 403 | ticket belongs to another user (non-admin) |
 | 404 | ticket not found |
 
+## Genres, halls and seats
+
+All write operations require **Admin**; request bodies are validated (FluentValidation) and return 400 on invalid input.
+
+| Resource | Create / Update body | Business rules |
+|---|---|---|
+| `/api/genres` | `{ "name": "Drama" }` | name unique (case-insensitive, 409); a genre assigned to movies cannot be deleted (409) |
+| `/api/halls` | `{ "name": "Hall 1", "capacity": 40 }` | name unique (409); capacity cannot drop below the existing seat count (409); a hall with sessions or seats cannot be deleted (409) |
+| `/api/seats` | create `{ "hallId": 1, "rowNumber": 1, "seatNumber": 1, "isVip": false }`, update without `hallId` | hall must exist (404); row/seat unique per hall (409); hall cannot exceed its capacity (409); a seat with bookings cannot be deleted (409) |
+
+Missing resources return 404 on get/update/delete.
+
+## Movie genres
+
+`POST /api/movies` and `PUT /api/movies/{id}` accept `genreIds`:
+
+```json
+{ "title": "Dune", "durationMinutes": 155, "ageRating": 12, "genreIds": [1, 5] }
+```
+
+- Unknown genre ids → 400 (nothing is saved); duplicates are ignored.
+- `PUT` **replaces** the genre set (`[]` or omitted removes all genres).
+- Movie responses include `"genres": [{ "id": 5, "name": "Sci-Fi" }]`; `GET /api/movies?genreId=` filters by genre.
+
+## Session cancellation
+
+`POST /api/sessions/{id}/cancel` (**Admin**) sets the session to `Cancelled` and cancels all of its `Active` bookings in one
+serializable transaction, so the seats become available again and no new bookings are accepted. 404 if the session is unknown,
+409 if it is already cancelled, 400 if it is completed. (Tickets are kept for history.)
+
+## Seed data
+
+Seeding is idempotent (matched by genre name, movie title, hall name and seat position; existing rows are never modified or duplicated)
+and runs at startup when `Seed:Enabled` is `true` (enabled in `appsettings.Development.json`). Startup then also applies pending migrations.
+It creates 7 genres, 5 movies with genres, 3 halls (`Hall 1` 5×8, `Hall 2` 6×10, `Hall 3` 4×6 seats, last row VIP; capacity = seat count).
+Sessions, users and bookings are not seeded.
+
+## Initial Admin
+
+There is no way to register as Admin through the API. The first Admin is created at startup from configuration, only when **no Admin exists yet**
+and an `InitialAdmin:Password` is supplied. Keep the credentials out of source control (user secrets or environment variables):
+
+```
+dotnet user-secrets set "InitialAdmin:Username" "admin" --project CinemaGo.Web
+dotnet user-secrets set "InitialAdmin:Email" "admin@example.com" --project CinemaGo.Web
+dotnet user-secrets set "InitialAdmin:Password" "a-long-random-password" --project CinemaGo.Web
+```
+
+(or `InitialAdmin__Username` / `InitialAdmin__Email` / `InitialAdmin__Password` environment variables). The password needs at least 12 characters and is stored hashed.
+Once an Admin exists the settings are ignored (remove them afterwards); an existing non-admin account is never promoted automatically.
+
+## Concurrency
+
+- **Bookings:** a unique filtered index on `Bookings(SessionId, SeatId) WHERE Status = Active` guarantees one active booking per seat; a lost race surfaces as 409.
+- **Sessions:** create/update (hall overlap check) and cancel run in a **Serializable** transaction (`IUnitOfWork.ExecuteInSerializableTransactionAsync`),
+  so two simultaneous requests cannot both pass the overlap check.
+
+## Database ER diagram
+
+```mermaid
+erDiagram
+    USER ||--o{ BOOKING : makes
+    SESSION ||--o{ BOOKING : has
+    SEAT ||--o{ BOOKING : reserved_in
+    BOOKING ||--o| TICKET : produces
+    MOVIE ||--o{ SESSION : screened_as
+    HALL ||--o{ SESSION : hosts
+    HALL ||--o{ SEAT : contains
+    MOVIE ||--o{ MOVIE_GENRE : has
+    GENRE ||--o{ MOVIE_GENRE : classifies
+
+    USER {
+        int Id PK
+        string Username UK
+        string Email UK
+        string PasswordHash
+        int Role "1 Customer, 2 Admin"
+    }
+    MOVIE {
+        int Id PK
+        string Title
+        int DurationMinutes
+        int AgeRating
+    }
+    GENRE {
+        int Id PK
+        string Name UK
+    }
+    MOVIE_GENRE {
+        int MovieId PK, FK
+        int GenreId PK, FK
+    }
+    HALL {
+        int Id PK
+        string Name UK
+        int Capacity
+    }
+    SEAT {
+        int Id PK
+        int HallId FK
+        int RowNumber "unique with HallId, SeatNumber"
+        int SeatNumber
+        bool IsVip
+    }
+    SESSION {
+        int Id PK
+        int MovieId FK
+        int HallId FK
+        datetime StartsAt
+        decimal StandardPrice
+        decimal VipPrice
+        int Status "1 Scheduled, 2 Cancelled, 3 Completed"
+    }
+    BOOKING {
+        int Id PK
+        int UserId FK
+        int SessionId FK
+        int SeatId FK
+        int Status "1 Active, 2 Cancelled"
+        datetime CreatedAt
+    }
+    TICKET {
+        int Id PK
+        int BookingId FK, UK
+        string TicketCode UK
+        decimal FinalPrice
+    }
+```
+
 ## Behavior notes
 
 - Errors are mapped centrally (`GlobalExceptionHandler`) to ProblemDetails:
   `ConflictException`→409, `ForbiddenException`→403,
-- DTOs use data annotations (`[Required]`, `[EmailAddress]`, `[Range]`, ...); invalid models return 400 automatically.
+- Request DTOs are validated with FluentValidation (`RequestValidators.cs`); invalid models return 400 automatically.
 - Session start times are UTC: values must carry a `Z`/offset and be in the future.
-- Known limitation: the session overlap check is read-then-write, so two simultaneous requests could both pass it.
-  A production fix would use a serializable transaction or a database-level constraint.
+
+

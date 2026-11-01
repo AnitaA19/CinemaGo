@@ -35,4 +35,10 @@ public interface ISessionService
     Task<bool> DeleteSessionAsync(
         int id,
         CancellationToken cancellationToken);
+
+    // Cancels the session and all of its active bookings; null when the session does not exist.
+    Task<SessionDTO?> CancelSessionAsync(
+        int id,
+        CancellationToken cancellationToken);
 }
+

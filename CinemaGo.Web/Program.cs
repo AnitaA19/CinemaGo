@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using System.Text;
 using CinemaGo.Application.Profiles;
 using CinemaGo.Application.Services.Implementations;
@@ -10,6 +10,7 @@ using CinemaGo.Infrastructure.Data;
 using CinemaGo.Infrastructure.Repositories;
 using CinemaGo.Infrastructure.UnitOfWork;
 using CinemaGo.Web.Middleware;
+using CinemaGo.Web.Seeding;
 using CinemaGo.Web.Responses;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -22,6 +23,43 @@ namespace Cinema
 {
     public class Program
     {
+        // Applies migrations and seeds data when "Seed:Enabled" is true and/or "InitialAdmin" settings are supplied.
+        private static async Task InitializeDatabaseAsync(WebApplication app)
+        {
+            var seedEnabled = app.Configuration.GetValue<bool>("Seed:Enabled");
+            var adminSection = app.Configuration.GetSection("InitialAdmin");
+            var adminConfigured = !string.IsNullOrWhiteSpace(adminSection["Password"]);
+
+            if (!seedEnabled && !adminConfigured)
+            {
+                return;
+            }
+
+            using var scope = app.Services.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<CinemaDbContext>();
+            await context.Database.MigrateAsync();
+
+            if (seedEnabled)
+            {
+                await DatabaseSeeder.SeedReferenceDataAsync(context);
+            }
+
+            if (adminConfigured)
+            {
+                var created = await DatabaseSeeder.EnsureInitialAdminAsync(
+                    context,
+                    scope.ServiceProvider.GetRequiredService<IPasswordHasher<User>>(),
+                    adminSection["Username"],
+                    adminSection["Email"],
+                    adminSection["Password"]);
+
+                if (created)
+                {
+                    app.Logger.LogInformation("Initial admin account created.");
+                }
+            }
+        }
+
         public static void Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
@@ -48,6 +86,9 @@ namespace Cinema
             builder.Services.AddScoped<IMovieService, MovieService>();
             builder.Services.AddScoped<ISessionService, SessionService>();
             builder.Services.AddScoped<IAuthService, AuthService>();
+            builder.Services.AddScoped<IGenreService, GenreService>();
+            builder.Services.AddScoped<IHallService, HallService>();
+            builder.Services.AddScoped<ISeatService, SeatService>();
             builder.Services.AddScoped<FluentValidationActionFilter>();
             builder.Services.AddValidatorsFromAssemblyContaining<CreateMovieDtoValidator>();
 
@@ -150,6 +191,8 @@ namespace Cinema
                     }));
 
             var app = builder.Build();
+
+            InitializeDatabaseAsync(app).GetAwaiter().GetResult();
 
             app.UseExceptionHandler();
             app.UseMiddleware<ApiResponseMiddleware>();

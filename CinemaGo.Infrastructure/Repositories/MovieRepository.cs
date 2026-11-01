@@ -1,4 +1,4 @@
-using CinemaGo.Domain.Entities;
+﻿using CinemaGo.Domain.Entities;
 using CinemaGo.Domain.Intefraces;
 using CinemaGo.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -15,7 +15,9 @@ public class MovieRepository : IMovieRepository
 
     public async Task<ICollection<Movie>> GetAllMoviesAsync(CancellationToken cancellationToken)
     {
-        return await _context.Movies.ToListAsync(cancellationToken);
+        return await _context.Movies
+            .Include(m => m.MovieGenres).ThenInclude(mg => mg.Genre)
+            .ToListAsync(cancellationToken);
     }
 
 public async Task<(ICollection<Movie> Movies, int TotalCount)> GetMoviesPagedAsync(
@@ -35,6 +37,7 @@ public async Task<(ICollection<Movie> Movies, int TotalCount)> GetMoviesPagedAsy
 
         var totalCount = await query.CountAsync(cancellationToken);
         var movies = await query
+            .Include(m => m.MovieGenres).ThenInclude(mg => mg.Genre)
             .OrderBy(m => m.Title)
             .ThenBy(m => m.Id)
             .Skip((page - 1) * pageSize)
@@ -46,7 +49,9 @@ public async Task<(ICollection<Movie> Movies, int TotalCount)> GetMoviesPagedAsy
 
     public async Task<Movie?> GetMovieByIdAsync(int id, CancellationToken cancellationToken)
     {
-        return await _context.Movies.FirstOrDefaultAsync(m => m.Id == id, cancellationToken);
+        return await _context.Movies
+            .Include(m => m.MovieGenres).ThenInclude(mg => mg.Genre)
+            .FirstOrDefaultAsync(m => m.Id == id, cancellationToken);
     }
 
     public async Task AddMovieAsync(Movie movie, CancellationToken cancellationToken)
@@ -56,7 +61,11 @@ public async Task<(ICollection<Movie> Movies, int TotalCount)> GetMoviesPagedAsy
 
     public void UpdateMovieAsync(Movie movie)
     {
-        _context.Movies.Update(movie);
+        // Tracked movies (with their genre links) are picked up by change tracking; Update would mark new links as modified.
+        if (_context.Entry(movie).State == EntityState.Detached)
+        {
+            _context.Movies.Update(movie);
+        }
     }
 
     public void DeleteMovieAsync(Movie movie)
@@ -64,3 +73,5 @@ public async Task<(ICollection<Movie> Movies, int TotalCount)> GetMoviesPagedAsy
         _context.Movies.Remove(movie);
     }
 }
+
+

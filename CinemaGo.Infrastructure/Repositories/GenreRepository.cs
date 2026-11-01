@@ -1,4 +1,4 @@
-using CinemaGo.Domain.Entities;
+﻿using CinemaGo.Domain.Entities;
 using CinemaGo.Domain.Intefraces;
 using CinemaGo.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -20,7 +20,7 @@ public class GenreRepository : IGenreRepository
 
     public async Task<Genre?> GetGenreByIdAsync(int id, CancellationToken cancellationToken)
     {
-        return await _context.Genres.FirstOrDefaultAsync(g => g.Id == id, cancellationToken);
+        return await _context.Genres.Include(g => g.MovieGenres).FirstOrDefaultAsync(g => g.Id == id, cancellationToken);
     }
 
     public async Task AddGenreAsync(Genre genre, CancellationToken cancellationToken)
@@ -38,3 +38,4 @@ public class GenreRepository : IGenreRepository
         _context.Genres.Remove(genre);
     }
 }
+

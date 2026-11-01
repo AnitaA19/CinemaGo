@@ -1,5 +1,8 @@
-using CinemaGo.Domain.DTOs.AuthDTOs;
+﻿using CinemaGo.Domain.DTOs.AuthDTOs;
 using CinemaGo.Domain.DTOs.BookingDTOs;
+using CinemaGo.Domain.DTOs.GenreDTOs;
+using CinemaGo.Domain.DTOs.HallDTOs;
+using CinemaGo.Domain.DTOs.SeatDTOs;
 using CinemaGo.Domain.DTOs.MovieDTOs;
 using CinemaGo.Domain.DTOs.SessionDTOs;
 using FluentValidation;
@@ -55,6 +58,12 @@ public sealed class CreateMovieDtoValidator : AbstractValidator<CreateMovieDTO>
 
         RuleFor(dto => dto.AgeRating)
             .InclusiveBetween(0, 21);
+
+        RuleFor(dto => dto.GenreIds)
+            .NotNull()
+            .Must(ids => ids == null || ids.Count <= 20).WithMessage("A movie can have at most 20 genres.");
+
+        RuleForEach(dto => dto.GenreIds).GreaterThan(0);
     }
 }
 
@@ -71,6 +80,12 @@ public sealed class UpdateMovieDtoValidator : AbstractValidator<UpdateMovieDTO>
 
         RuleFor(dto => dto.AgeRating)
             .InclusiveBetween(0, 21);
+
+        RuleFor(dto => dto.GenreIds)
+            .NotNull()
+            .Must(ids => ids == null || ids.Count <= 20).WithMessage("A movie can have at most 20 genres.");
+
+        RuleForEach(dto => dto.GenreIds).GreaterThan(0);
     }
 }
 
@@ -140,3 +155,58 @@ public sealed class UpdateSessionDtoValidator : AbstractValidator<UpdateSessionD
             .WithMessage("VipPrice cannot be lower than StandardPrice.");
     }
 }
+
+public sealed class CreateGenreDtoValidator : AbstractValidator<CreateGenreDTO>
+{
+    public CreateGenreDtoValidator()
+    {
+        RuleFor(dto => dto.Name).NotEmpty().MaximumLength(100);
+    }
+}
+
+public sealed class UpdateGenreDtoValidator : AbstractValidator<UpdateGenreDTO>
+{
+    public UpdateGenreDtoValidator()
+    {
+        RuleFor(dto => dto.Name).NotEmpty().MaximumLength(100);
+    }
+}
+
+public sealed class CreateHallDtoValidator : AbstractValidator<CreateHallDTO>
+{
+    public CreateHallDtoValidator()
+    {
+        RuleFor(dto => dto.Name).NotEmpty().MaximumLength(100);
+        RuleFor(dto => dto.Capacity).InclusiveBetween(1, 10000);
+    }
+}
+
+public sealed class UpdateHallDtoValidator : AbstractValidator<UpdateHallDTO>
+{
+    public UpdateHallDtoValidator()
+    {
+        RuleFor(dto => dto.Name).NotEmpty().MaximumLength(100);
+        RuleFor(dto => dto.Capacity).InclusiveBetween(1, 10000);
+    }
+}
+
+public sealed class CreateSeatDtoValidator : AbstractValidator<CreateSeatDTO>
+{
+    public CreateSeatDtoValidator()
+    {
+        RuleFor(dto => dto.HallId).GreaterThan(0);
+        RuleFor(dto => dto.RowNumber).InclusiveBetween(1, 1000);
+        RuleFor(dto => dto.SeatNumber).InclusiveBetween(1, 1000);
+    }
+}
+
+public sealed class UpdateSeatDtoValidator : AbstractValidator<UpdateSeatDTO>
+{
+    public UpdateSeatDtoValidator()
+    {
+        RuleFor(dto => dto.RowNumber).InclusiveBetween(1, 1000);
+        RuleFor(dto => dto.SeatNumber).InclusiveBetween(1, 1000);
+    }
+}
+
+

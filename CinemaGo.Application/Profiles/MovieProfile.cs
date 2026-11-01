@@ -1,4 +1,5 @@
 ﻿using AutoMapper;
+using CinemaGo.Domain.DTOs.GenreDTOs;
 using CinemaGo.Domain.DTOs.MovieDTOs;
 using CinemaGo.Domain.Entities;
 
@@ -8,7 +9,10 @@ public class MovieMapper : Profile
 {
     public MovieMapper()
     {
-        CreateMap<Movie, MovieDTO>();
+        CreateMap<Movie, MovieDTO>()
+            .ForMember(d => d.Genres, o => o.MapFrom(m => m.MovieGenres
+                .OrderBy(mg => mg.Genre.Name)
+                .Select(mg => new GenreDTO { Id = mg.GenreId, Name = mg.Genre.Name })));
         CreateMap<CreateMovieDTO, Movie>();
         CreateMap<UpdateMovieDTO, Movie>();
         CreateMap<Movie, UpdateMovieDTO>();
@@ -22,3 +26,4 @@ public class MovieMapper : Profile
         CreateMap<UpdateMovieDTO, CreateMovieDTO>();
     }
 }
+
