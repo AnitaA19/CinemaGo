@@ -57,7 +57,9 @@ public sealed class SessionConcurrencySqlServerTests : IDisposable
         new HallRepository(context),
         new SeatRepository(context),
         new CinemaGo.Infrastructure.UnitOfWork.UnitOfWork(context),
-        _mapper);
+        _mapper,
+        NullLogger<SessionService>.Instance,
+        new NoopSessionCancellationEmailSender());
 
     private void Seed()
     {

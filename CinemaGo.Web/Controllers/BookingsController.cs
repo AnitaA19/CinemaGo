@@ -31,6 +31,19 @@ public class BookingsController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = booking.Id }, booking);
     }
 
+    [HttpPost("batch")]
+    public async Task<ActionResult<ICollection<BookingDTO>>> BookBatch(
+        CreateBookingsDTO dto,
+        CancellationToken cancellationToken)
+    {
+        var bookings = await _bookingService.BookTicketsAsync(
+            dto,
+            GetUserId(),
+            cancellationToken);
+
+        return Created("/api/bookings/my", bookings);
+    }
+
     [HttpGet("my")]
     public async Task<ActionResult<ICollection<BookingDTO>>> GetMyBookings(
         CancellationToken cancellationToken)

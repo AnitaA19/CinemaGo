@@ -9,6 +9,11 @@ public interface IBookingService
         int userId,
         CancellationToken cancellationToken);
 
+    Task<ICollection<BookingDTO>> BookTicketsAsync(
+        CreateBookingsDTO dto,
+        int userId,
+        CancellationToken cancellationToken);
+
     Task<BookingDTO?> GetBookingByIdAsync(
         int id,
         CancellationToken cancellationToken);

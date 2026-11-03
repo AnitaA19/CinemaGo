@@ -10,4 +10,5 @@ public interface IMovieService
     Task<MovieDTO> AddMovieAsync(CreateMovieDTO createMovieDto, CancellationToken cancellationToken);
     Task<MovieDTO?> UpdateMovieAsync(int id, UpdateMovieDTO updateMovieDto, CancellationToken cancellationToken);
     Task<bool> DeleteMovieAsync(int id, CancellationToken cancellationToken);
+    Task<ICollection<MovieSalesDTO>> GetSalesByMovieAsync(CancellationToken cancellationToken);
 }

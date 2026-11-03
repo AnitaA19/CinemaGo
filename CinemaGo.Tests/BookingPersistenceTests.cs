@@ -33,7 +33,9 @@ public sealed class BookingPersistenceTests : IDisposable
             new User { Id = 2, Username = "b", Email = "b@x.com", PasswordHash = "h" });
         context.Movies.Add(new Movie { Id = 1, Title = "Dune", DurationMinutes = 120, AgeRating = 12 });
         context.Halls.Add(new Hall { Id = 1, Name = "Hall", Capacity = 10 });
-        context.Seats.Add(new Seat { Id = 1, HallId = 1, RowNumber = 1, SeatNumber = 1 });
+        context.Seats.AddRange(
+            new Seat { Id = 1, HallId = 1, RowNumber = 1, SeatNumber = 1 },
+            new Seat { Id = 2, HallId = 1, RowNumber = 1, SeatNumber = 2 });
         context.Sessions.Add(new Session
         {
             Id = 1,
@@ -57,6 +59,44 @@ public sealed class BookingPersistenceTests : IDisposable
         _mapper);
 
     private static CreateBookingDTO Dto => new() { SessionId = 1, SeatId = 1 };
+
+    [Fact]
+    public async Task BookBatch_PersistsBookingsAndTicketsTogether()
+    {
+        using var context = CreateContext();
+        var service = CreateService(context);
+
+        var bookings = await service.BookTicketsAsync(
+            new CreateBookingsDTO { SessionId = 1, SeatIds = [1, 2] },
+            1,
+            CancellationToken.None);
+
+        Assert.Equal(2, bookings.Count);
+        Assert.Equal(2, await context.Bookings.CountAsync());
+        Assert.Equal(2, await context.Tickets.CountAsync());
+        Assert.Equal(2, bookings.Select(booking => booking.TicketCode).Distinct().Count());
+    }
+
+    [Fact]
+    public async Task BookBatch_OneUnavailableSeatPersistsNoNewBookings()
+    {
+        using (var setup = CreateContext())
+        {
+            setup.Bookings.Add(new Booking { UserId = 2, SessionId = 1, SeatId = 2 });
+            await setup.SaveChangesAsync();
+        }
+
+        using var context = CreateContext();
+        var service = CreateService(context);
+
+        await Assert.ThrowsAsync<ConflictException>(() => service.BookTicketsAsync(
+            new CreateBookingsDTO { SessionId = 1, SeatIds = [1, 2] },
+            1,
+            CancellationToken.None));
+
+        Assert.Equal(1, await context.Bookings.CountAsync());
+        Assert.False(await context.Bookings.AnyAsync(booking => booking.SeatId == 1));
+    }
 
     [Fact]
     public async Task Book_SameSeatTwice_SecondIsRejectedByService()

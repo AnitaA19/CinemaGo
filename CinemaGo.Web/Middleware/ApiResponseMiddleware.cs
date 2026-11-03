@@ -48,14 +48,18 @@ public sealed class ApiResponseMiddleware
         if (context.Response.StatusCode >= StatusCodes.Status400BadRequest
             && responseBuffer.Length == 0)
         {
-            context.Response.ContentType = "application/json; charset=utf-8";
+            var title = ReasonPhrases.GetReasonPhrase(context.Response.StatusCode);
+            context.Response.ContentType = "application/problem+json";
             context.Response.ContentLength = null;
             await JsonSerializer.SerializeAsync(
                 originalBody,
-                new ApiResponse<object>
+                new Microsoft.AspNetCore.Mvc.ProblemDetails
                 {
-                    Success = false,
-                    Message = ReasonPhrases.GetReasonPhrase(context.Response.StatusCode)
+                    Type = "about:blank",
+                    Title = title,
+                    Status = context.Response.StatusCode,
+                    Detail = title,
+                    Instance = context.Request.Path
                 },
                 JsonOptions,
                 context.RequestAborted);

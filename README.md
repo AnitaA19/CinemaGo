@@ -5,8 +5,19 @@ Layered solution: `Domain` (entities, DTOs, exceptions) → `Application` (servi
 
 ## Running
 
-1. Set the SQL Server connection string (`ConnectionStrings:DefaultConnection`) and the `Jwt` section
-   (`Key` ≥ 32 bytes, `Issuer`, `Audience`, optional `ExpiresInMinutes`) via `appsettings.Development.json` or user secrets.
+1. Keep the configured SQL Server connection string in `CinemaGo.Web/appsettings.json`. Configure the JWT signing key and SMTP settings through user secrets (do not commit credentials):
+
+   ```powershell
+   dotnet user-secrets set "Jwt:Key" "replace-with-a-random-secret-at-least-32-bytes" --project CinemaGo.Web
+   dotnet user-secrets set "Email:Smtp:Host" "smtp.example.com" --project CinemaGo.Web
+   dotnet user-secrets set "Email:Smtp:Port" "587" --project CinemaGo.Web
+   dotnet user-secrets set "Email:Smtp:EnableSsl" "true" --project CinemaGo.Web
+   dotnet user-secrets set "Email:Smtp:From" "cinema@example.com" --project CinemaGo.Web
+   dotnet user-secrets set "Email:Smtp:Username" "smtp-user" --project CinemaGo.Web
+   dotnet user-secrets set "Email:Smtp:Password" "smtp-password" --project CinemaGo.Web
+   ```
+
+   `Email:Smtp:Username` and `Email:Smtp:Password` can be omitted for SMTP servers that allow unauthenticated relay. The application uses SMTP over TLS by default and sends one BCC message to all distinct customers affected by a cancellation. Supply `Jwt:Issuer` and `Jwt:Audience` through user secrets or environment variables only if you need to override the configured values.
 2. Apply migrations: `dotnet ef database update --project CinemaGo.Infrastructure --startup-project CinemaGo.Web`
 3. `dotnet run --project CinemaGo.Web` and open `/swagger`.
 4. Tests: `dotnet test`
@@ -17,10 +28,11 @@ Layered solution: `Domain` (entities, DTOs, exceptions) → `Application` (servi
 |---|---|---|
 | POST | `/api/auth/register`, `/api/auth/login` | anonymous |
 | GET | `/api/movies`, `/api/movies/{id}`, `/api/sessions`, `/api/sessions/{id}` | anonymous |
+| GET | `/api/movies/sales` | **Admin** (active ticket count and revenue grouped by movie) |
 | GET | `/api/genres`, `/api/genres/{id}`, `/api/halls`, `/api/halls/{id}`, `/api/seats` (`?hallId=`), `/api/seats/{id}` | anonymous |
 | POST/PUT/DELETE | `/api/movies`, `/api/sessions`, `/api/genres`, `/api/halls`, `/api/seats` | **Admin** |
 | POST | `/api/sessions/{id}/cancel` | **Admin** |
-| POST | `/api/bookings` | JWT (any user) |
+| POST | `/api/bookings`, `/api/bookings/batch` | JWT (any user) |
 | GET | `/api/bookings/my` | JWT (own bookings) |
 | GET | `/api/bookings/{id}` | JWT (owner) or **Admin** |
 | DELETE | `/api/bookings/{id}` | JWT (owner) or **Admin** |
@@ -68,6 +80,8 @@ The price is calculated on the server (`vipPrice` for VIP seats, otherwise `stan
 | 403 | cancelling another user's booking |
 | 404 | session, seat or booking not found |
 | 409 | seat already booked for this session |
+
+`POST /api/bookings/batch` accepts `{ "sessionId": 1, "seatIds": [3, 4] }` and creates all requested bookings and tickets in a single serializable transaction (1–20 unique seats). If any seat is invalid or unavailable, none of the batch is saved.
 
 `DELETE /api/bookings/{id}` cancels the booking (204) and frees the seat for a new booking.
 Double booking is prevented both by a service check and by a unique database index on active
@@ -127,12 +141,16 @@ Missing resources return 404 on get/update/delete.
 ## Session cancellation
 
 `POST /api/sessions/{id}/cancel` (**Admin**) sets the session to `Cancelled` and cancels all of its `Active` bookings in one
-serializable transaction, so the seats become available again and no new bookings are accepted. 404 if the session is unknown,
+serializable transaction, so the seats become available again and no new bookings are accepted. After commit, the configured SMTP server sends a cancellation email to all distinct affected customers. SMTP configuration is required when the session has active bookings; if delivery fails, the API reports 503 (the cancellation itself has already committed). 404 if the session is unknown,
 409 if it is already cancelled, 400 if it is completed. (Tickets are kept for history.)
+
+## Sales aggregate demo
+
+`GET /api/movies/sales` (**Admin**) groups active booking tickets by movie, calculates ticket count and `SUM(FinalPrice)`, then sorts by revenue descending. Cancelled bookings are excluded. This SQL-translated LINQ query is a sample aggregate for the project defense.
 
 ## Seed data
 
-Seeding is idempotent (matched by genre name, movie title, hall name and seat position; existing rows are never modified or duplicated)
+Seeding is idempotent
 and runs at startup when `Seed:Enabled` is `true` (enabled in `appsettings.Development.json`). Startup then also applies pending migrations.
 It creates 7 genres, 5 movies with genres, 3 halls (`Hall 1` 5×8, `Hall 2` 6×10, `Hall 3` 4×6 seats, last row VIP; capacity = seat count).
 Sessions, users and bookings are not seeded.
@@ -231,8 +249,8 @@ erDiagram
 
 ## Behavior notes
 
-- Errors are mapped centrally (`GlobalExceptionHandler`) to ProblemDetails:
-  `ConflictException`→409, `ForbiddenException`→403,
+- Errors are mapped centrally (`GlobalExceptionHandler`) to RFC-style `application/problem+json` ProblemDetails:
+  `ConflictException`→409, `ForbiddenException`→403, with validation errors in the `errors` extension.
 - Request DTOs are validated with FluentValidation (`RequestValidators.cs`); invalid models return 400 automatically.
 - Session start times are UTC: values must carry a `Z`/offset and be in the future.
 

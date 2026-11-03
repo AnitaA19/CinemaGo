@@ -2,8 +2,10 @@
 using CinemaGo.Domain.Entities;
 using CinemaGo.Domain.Enums;
 using CinemaGo.Domain.Exceptions;
+using CinemaGo.Domain.Intefraces;
 using CinemaGo.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace CinemaGo.Tests;
 
@@ -14,11 +16,12 @@ public sealed class SessionCancellationTests : IDisposable
     private readonly TestDb _db = new();
     private readonly SessionService _service;
     private readonly Session _session;
+    private readonly RecordingSessionCancellationEmailSender _emailSender = new();
 
     public SessionCancellationTests()
     {
         var ctx = _db.Context;
-        _service = new SessionService(new SessionRepository(ctx), new MovieRepository(ctx), new HallRepository(ctx), new SeatRepository(ctx), _db.UnitOfWork, _db.Mapper);
+        _service = new SessionService(new SessionRepository(ctx), new MovieRepository(ctx), new HallRepository(ctx), new SeatRepository(ctx), _db.UnitOfWork, _db.Mapper, NullLogger<SessionService>.Instance, _emailSender);
 
         var hall = new Hall { Name = "H", Capacity = 3 };
         for (var i = 1; i <= 3; i++)
@@ -44,9 +47,32 @@ public sealed class SessionCancellationTests : IDisposable
         var result = await _service.CancelSessionAsync(_session.Id, Ct);
 
         Assert.Equal(SessionStatus.Cancelled, result!.Status);
+        Assert.Equal(new[] { "u@x.com" }, _emailSender.Recipients);
+        Assert.Equal(_session.Id, _emailSender.SessionId);
+        Assert.Equal("M", _emailSender.MovieTitle);
         _db.Context.ChangeTracker.Clear();
         Assert.Equal(SessionStatus.Cancelled, (await _db.Context.Sessions.SingleAsync()).Status);
         Assert.All(await _db.Context.Bookings.ToListAsync(), b => Assert.Equal(BookingStatus.Cancelled, b.Status));
+    }
+
+    private sealed class RecordingSessionCancellationEmailSender : ISessionCancellationEmailSender
+    {
+        public List<string> Recipients { get; private set; } = [];
+        public int SessionId { get; private set; }
+        public string MovieTitle { get; private set; } = string.Empty;
+
+        public Task SendAsync(
+            IEnumerable<string> recipients,
+            int sessionId,
+            string movieTitle,
+            DateTime startsAt,
+            CancellationToken cancellationToken)
+        {
+            Recipients = recipients.ToList();
+            SessionId = sessionId;
+            MovieTitle = movieTitle;
+            return Task.CompletedTask;
+        }
     }
 
     [Fact]
@@ -56,6 +82,20 @@ public sealed class SessionCancellationTests : IDisposable
 
         var seats = await _service.GetSessionSeatsAsync(_session.Id, Ct);
         Assert.All(seats!, s => Assert.True(s.IsAvailable));
+    }
+
+    [Fact]
+    public async Task Cancel_WithoutActiveBookings_DoesNotSendEmail()
+    {
+        _db.Context.Bookings.Where(booking => booking.Status == BookingStatus.Active)
+            .ToList()
+            .ForEach(booking => booking.Status = BookingStatus.Cancelled);
+        await _db.Context.SaveChangesAsync();
+        _emailSender.Recipients.Clear();
+
+        await _service.CancelSessionAsync(_session.Id, Ct);
+
+        Assert.Empty(_emailSender.Recipients);
     }
 
     [Fact]

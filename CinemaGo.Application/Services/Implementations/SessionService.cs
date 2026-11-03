@@ -6,6 +6,7 @@ using CinemaGo.Domain.Entities;
 using CinemaGo.Domain.Enums;
 using CinemaGo.Domain.Exceptions;
 using CinemaGo.Domain.Intefraces;
+using Microsoft.Extensions.Logging;
 
 namespace CinemaGo.Application.Services.Implementations;
 
@@ -17,6 +18,8 @@ public class SessionService : ISessionService
     private readonly ISeatRepository _seatRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
+    private readonly ILogger<SessionService> _logger;
+    private readonly ISessionCancellationEmailSender _emailSender;
 
     public SessionService(
         ISessionRepository sessionRepository,
@@ -24,7 +27,9 @@ public class SessionService : ISessionService
         IHallRepository hallRepository,
         ISeatRepository seatRepository,
         IUnitOfWork unitOfWork,
-        IMapper mapper)
+        IMapper mapper,
+        ILogger<SessionService> logger,
+        ISessionCancellationEmailSender emailSender)
     {
         _sessionRepository = sessionRepository;
         _movieRepository = movieRepository;
@@ -32,6 +37,8 @@ public class SessionService : ISessionService
         _seatRepository = seatRepository;
         _unitOfWork = unitOfWork;
         _mapper = mapper;
+        _logger = logger;
+        _emailSender = emailSender;
     }
 
     public async Task<ICollection<SessionDTO>> GetAllSessionsAsync(
@@ -295,7 +302,8 @@ public class SessionService : ISessionService
         int id,
         CancellationToken cancellationToken)
     {
-        return await _unitOfWork.ExecuteInSerializableTransactionAsync(async () =>
+        var notificationRecipients = new List<string>();
+        var cancelledSession = await _unitOfWork.ExecuteInSerializableTransactionAsync(async () =>
         {
             var session = await _sessionRepository
                 .GetSessionByIdAsync(id, cancellationToken);
@@ -321,6 +329,7 @@ public class SessionService : ISessionService
                 .Where(b => b.Status == BookingStatus.Active))
             {
                 booking.Status = BookingStatus.Cancelled;
+                notificationRecipients.Add(booking.User.Email);
             }
 
             _sessionRepository.UpdateSessionAsync(session);
@@ -329,6 +338,27 @@ public class SessionService : ISessionService
 
             return _mapper.Map<SessionDTO>(session);
         }, cancellationToken);
+
+        if (cancelledSession is not null && notificationRecipients.Count > 0)
+        {
+            var recipients = notificationRecipients
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            await _emailSender.SendAsync(
+                recipients,
+                cancelledSession.Id,
+                cancelledSession.MovieTitle,
+                cancelledSession.StartsAt,
+                cancellationToken);
+
+            _logger.LogInformation(
+                "Session cancellation email delivered to {RecipientCount} recipients for session {SessionId}.",
+                recipients.Count,
+                cancelledSession.Id);
+        }
+
+        return cancelledSession;
     }
 
     private async Task EnsureNoOverlapAsync(

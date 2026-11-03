@@ -1,5 +1,6 @@
 ﻿using AutoMapper;
 using CinemaGo.Application.Profiles;
+using CinemaGo.Domain.Intefraces;
 using CinemaGo.Infrastructure.Data;
 using CinemaGo.Infrastructure.UnitOfWork;
 using Microsoft.Data.Sqlite;
@@ -36,4 +37,14 @@ public sealed class TestDb : IDisposable
         Context.Dispose();
         _connection.Dispose();
     }
+}
+
+public sealed class NoopSessionCancellationEmailSender : ISessionCancellationEmailSender
+{
+    public Task SendAsync(
+        IEnumerable<string> recipients,
+        int sessionId,
+        string movieTitle,
+        DateTime startsAt,
+        CancellationToken cancellationToken) => Task.CompletedTask;
 }

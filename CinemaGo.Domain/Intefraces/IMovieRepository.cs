@@ -1,3 +1,4 @@
+using CinemaGo.Domain.DTOs.MovieDTOs;
 using CinemaGo.Domain.Entities;
 
 namespace CinemaGo.Domain.Intefraces;
@@ -12,4 +13,5 @@ public interface IMovieRepository
     Task AddMovieAsync(Movie movie, CancellationToken cancellationToken);
     void UpdateMovieAsync(Movie movie);
     void DeleteMovieAsync(Movie movie);
+    Task<ICollection<MovieSalesDTO>> GetSalesByMovieAsync(CancellationToken cancellationToken);
 }

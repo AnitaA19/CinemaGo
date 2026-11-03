@@ -1,4 +1,5 @@
-﻿using CinemaGo.Domain.Entities;
+﻿using CinemaGo.Domain.DTOs.MovieDTOs;
+using CinemaGo.Domain.Entities;
 using CinemaGo.Domain.Intefraces;
 using CinemaGo.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -71,6 +72,23 @@ public async Task<(ICollection<Movie> Movies, int TotalCount)> GetMoviesPagedAsy
     public void DeleteMovieAsync(Movie movie)
     {
         _context.Movies.Remove(movie);
+    }
+
+    public async Task<ICollection<MovieSalesDTO>> GetSalesByMovieAsync(CancellationToken cancellationToken)
+    {
+        return await _context.Tickets
+            .Where(ticket => ticket.Booking.Status == CinemaGo.Domain.Enums.BookingStatus.Active)
+            .GroupBy(ticket => new { ticket.Booking.Session.MovieId, ticket.Booking.Session.Movie.Title })
+            .Select(group => new MovieSalesDTO
+            {
+                MovieId = group.Key.MovieId,
+                Title = group.Key.Title,
+                TicketCount = group.Count(),
+                Revenue = group.Sum(ticket => ticket.FinalPrice)
+            })
+            .OrderByDescending(sales => sales.Revenue)
+            .ThenBy(sales => sales.Title)
+            .ToListAsync(cancellationToken);
     }
 }
 

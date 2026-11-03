@@ -98,6 +98,18 @@ public sealed class CreateBookingDtoValidator : AbstractValidator<CreateBookingD
     }
 }
 
+public sealed class CreateBookingsDtoValidator : AbstractValidator<CreateBookingsDTO>
+{
+    public CreateBookingsDtoValidator()
+    {
+        RuleFor(dto => dto.SessionId).GreaterThan(0);
+        RuleFor(dto => dto.SeatIds).NotNull().Must(ids => ids is { Count: >= 1 and <= 20 });
+        RuleForEach(dto => dto.SeatIds).GreaterThan(0);
+        RuleFor(dto => dto.SeatIds).Must(ids => ids is null || ids.Distinct().Count() == ids.Count)
+            .WithMessage("Seat IDs must be unique.");
+    }
+}
+
 public sealed class CreateSessionDtoValidator : AbstractValidator<CreateSessionDTO>
 {
     public CreateSessionDtoValidator()

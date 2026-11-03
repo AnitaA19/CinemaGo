@@ -7,6 +7,7 @@ using CinemaGo.Application.Validation;
 using CinemaGo.Domain.Entities;
 using CinemaGo.Domain.Intefraces;
 using CinemaGo.Infrastructure.Data;
+using CinemaGo.Infrastructure.Email;
 using CinemaGo.Infrastructure.Repositories;
 using CinemaGo.Infrastructure.UnitOfWork;
 using CinemaGo.Web.Middleware;
@@ -79,6 +80,7 @@ namespace Cinema
             builder.Services.AddScoped<ITicketRepository, TicketRepository>();
             builder.Services.AddScoped<IUserRepository, UserRepository>();
             builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+            builder.Services.AddScoped<ISessionCancellationEmailSender, SmtpSessionCancellationEmailSender>();
 
             // Application services
             builder.Services.AddScoped<IBookingService, BookingService>();
@@ -171,11 +173,13 @@ namespace Cinema
                                         : error.ErrorMessage)
                                     .ToArray());
 
-                        return new BadRequestObjectResult(new ApiResponse<object>
+                        return new BadRequestObjectResult(new ValidationProblemDetails(errors)
                         {
-                            Success = false,
-                            Message = "One or more validation errors occurred.",
-                            Errors = errors
+                            Type = "about:blank",
+                            Title = "One or more validation errors occurred.",
+                            Status = StatusCodes.Status400BadRequest,
+                            Detail = "The request contains invalid values.",
+                            Instance = context.HttpContext.Request.Path
                         });
                     };
                 });

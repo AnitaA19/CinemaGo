@@ -75,6 +75,46 @@ public class BookingServiceTests
     }
 
     [Fact]
+    public async Task BookTickets_BooksAllRequestedSeatsInOneSave()
+    {
+        var secondSeat = new Seat
+        {
+            Id = 4,
+            HallId = 2,
+            RowNumber = 4,
+            SeatNumber = 6,
+            IsVip = false
+        };
+        _seats.Seats.Add(secondSeat);
+
+        var result = await _service.BookTicketsAsync(
+            new CreateBookingsDTO { SessionId = 1, SeatIds = [3, 4] },
+            userId: 7,
+            CancellationToken.None);
+
+        Assert.Equal(2, result.Count);
+        Assert.Equal(new decimal?[] { 20m, 10m }, result.Select(booking => booking.FinalPrice).ToArray());
+        Assert.Equal(1, _unitOfWork.SaveCount);
+        Assert.Equal(2, _bookings.AddedBookings.Count);
+        Assert.All(result, booking => Assert.Equal(7, booking.UserId));
+        Assert.All(result, booking => Assert.False(string.IsNullOrWhiteSpace(booking.TicketCode)));
+    }
+
+    [Fact]
+    public async Task BookTickets_TakenSeatDoesNotPersistAnyBooking()
+    {
+        _bookings.SeatTaken = true;
+
+        await Assert.ThrowsAsync<ConflictException>(() => _service.BookTicketsAsync(
+            new CreateBookingsDTO { SessionId = 1, SeatIds = [3, 4] },
+            userId: 7,
+            CancellationToken.None));
+
+        Assert.Empty(_bookings.AddedBookings);
+        Assert.Equal(0, _unitOfWork.SaveCount);
+    }
+
+    [Fact]
     public async Task BookTicket_StandardSeat_UsesStandardPrice()
     {
         _seats.Seat.IsVip = false;
@@ -264,15 +304,16 @@ public class BookingServiceTests
     private sealed class FakeSeatRepository : ISeatRepository
     {
         public Seat Seat { get; set; } = null!;
+        public List<Seat> Seats { get; } = [];
 
         public Task<ICollection<Seat>> GetAllSeatsAsync(CancellationToken cancellationToken) =>
-            Task.FromResult<ICollection<Seat>>(new List<Seat> { Seat });
+            Task.FromResult<ICollection<Seat>>(new List<Seat> { Seat }.Concat(Seats).ToList());
 
         public Task<ICollection<Seat>> GetSeatsByHallIdAsync(int hallId, CancellationToken cancellationToken) =>
-            Task.FromResult<ICollection<Seat>>(new List<Seat> { Seat });
+            Task.FromResult<ICollection<Seat>>(new List<Seat> { Seat }.Concat(Seats).ToList());
 
         public Task<Seat?> GetSeatByIdAsync(int id, CancellationToken cancellationToken) =>
-            Task.FromResult(id == Seat.Id ? Seat : null);
+            Task.FromResult(id == Seat.Id ? Seat : Seats.FirstOrDefault(seat => seat.Id == id));
 
         public Task AddSeatAsync(Seat seat, CancellationToken cancellationToken) =>
             Task.CompletedTask;
@@ -284,6 +325,7 @@ public class BookingServiceTests
     private sealed class FakeBookingRepository : IBookingRepository
     {
         public Booking? AddedBooking { get; private set; }
+        public List<Booking> AddedBookings { get; } = [];
         public bool SeatTaken { get; set; }
 
         public Task<ICollection<Booking>> GetAllBookingsAsync(CancellationToken cancellationToken) =>
@@ -302,6 +344,7 @@ public class BookingServiceTests
         public Task AddBookingAsync(Booking booking, CancellationToken cancellationToken)
         {
             AddedBooking = booking;
+            AddedBookings.Add(booking);
             return Task.CompletedTask;
         }
 

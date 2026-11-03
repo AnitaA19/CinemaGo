@@ -68,7 +68,9 @@ public sealed class SessionPaginationTests : IDisposable
             new HallRepository(_context),
             new SeatRepository(_context),
             new UnitOfWork(_context),
-            mapper);
+            mapper,
+            NullLogger<SessionService>.Instance,
+            new NoopSessionCancellationEmailSender());
     }
 
     public void Dispose()

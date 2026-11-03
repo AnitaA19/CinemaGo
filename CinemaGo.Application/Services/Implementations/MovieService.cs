@@ -146,6 +146,9 @@ namespace CinemaGo.Application.Services.Implementations
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             return true;
         }
+
+        public Task<ICollection<MovieSalesDTO>> GetSalesByMovieAsync(CancellationToken cancellationToken) =>
+            _movieRepository.GetSalesByMovieAsync(cancellationToken);
     }
 }
 

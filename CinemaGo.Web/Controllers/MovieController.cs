@@ -28,6 +28,13 @@ public class MoviesController : ControllerBase
         return Ok(await _movieService.GetMoviesAsync(title, genreId, page, pageSize, cancellationToken));
     }
 
+    [HttpGet("sales")]
+    [Authorize(Roles = "Admin")]
+    public async Task<ActionResult<ICollection<MovieSalesDTO>>> GetSales(CancellationToken cancellationToken)
+    {
+        return Ok(await _movieService.GetSalesByMovieAsync(cancellationToken));
+    }
+
     [HttpGet("{id:int}")]
     public async Task<ActionResult<MovieDTO>> GetById(int id, CancellationToken cancellationToken)
     {

@@ -6,6 +6,7 @@ using CinemaGo.Domain.Entities;
 using CinemaGo.Domain.Enums;
 using CinemaGo.Domain.Exceptions;
 using CinemaGo.Domain.Intefraces;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace CinemaGo.Tests;
 
@@ -23,7 +24,7 @@ public class SessionServiceTests
     public SessionServiceTests()
     {
         var mapper = new MapperConfiguration(c => c.AddProfile<SessionProfile>(), Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance).CreateMapper();
-        _service = new SessionService(_sessions, _movies, _halls, _seats, _uow, mapper);
+        _service = new SessionService(_sessions, _movies, _halls, _seats, _uow, mapper, NullLogger<SessionService>.Instance, new NoopSessionCancellationEmailSender());
 
         _movies.Items[1] = new Movie { Id = 1, Title = "Dune", DurationMinutes = 120 };
         _sessions.Movies = _movies.Items;
@@ -417,6 +418,8 @@ public class SessionServiceTests
         public Task AddMovieAsync(Movie movie, CancellationToken ct) => Task.CompletedTask;
         public void UpdateMovieAsync(Movie movie) { }
         public void DeleteMovieAsync(Movie movie) { }
+        public Task<ICollection<CinemaGo.Domain.DTOs.MovieDTOs.MovieSalesDTO>> GetSalesByMovieAsync(CancellationToken ct) =>
+            Task.FromResult<ICollection<CinemaGo.Domain.DTOs.MovieDTOs.MovieSalesDTO>>(new List<CinemaGo.Domain.DTOs.MovieDTOs.MovieSalesDTO>());
     }
 
     private sealed class FakeHallRepository : IHallRepository

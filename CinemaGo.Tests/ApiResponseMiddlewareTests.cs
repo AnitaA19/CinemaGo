@@ -32,7 +32,7 @@ public class ApiResponseMiddlewareTests
     }
 
     [Fact]
-    public async Task EmptyErrorResponse_IsReturnedAsApiResponse()
+    public async Task EmptyErrorResponse_IsReturnedAsProblemDetails()
     {
         var context = new DefaultHttpContext();
         context.Request.Path = "/api/movies/42";
@@ -43,13 +43,15 @@ public class ApiResponseMiddlewareTests
 
         await middleware.InvokeAsync(context);
 
+        Assert.Equal("application/problem+json", context.Response.ContentType);
         context.Response.Body.Position = 0;
         using var response = await JsonDocument.ParseAsync(context.Response.Body);
         var root = response.RootElement;
 
-        Assert.False(root.GetProperty("success").GetBoolean());
-        Assert.Equal("Not Found", root.GetProperty("message").GetString());
-        Assert.Equal(StatusCodes.Status404NotFound, context.Response.StatusCode);
+        Assert.Equal("about:blank", root.GetProperty("type").GetString());
+        Assert.Equal("Not Found", root.GetProperty("title").GetString());
+        Assert.Equal(StatusCodes.Status404NotFound, root.GetProperty("status").GetInt32());
+        Assert.Equal("/api/movies/42", root.GetProperty("instance").GetString());
     }
 
     [Fact]

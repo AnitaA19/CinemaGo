@@ -135,6 +135,92 @@ public class BookingService : IBookingService
         return result;
     }
 
+    public async Task<ICollection<BookingDTO>> BookTicketsAsync(
+        CreateBookingsDTO dto,
+        int userId,
+        CancellationToken cancellationToken)
+    {
+        if (dto.SeatIds.Count is < 1 or > 20)
+        {
+            throw new ValidationException("A booking must contain between 1 and 20 seats.");
+        }
+
+        if (dto.SeatIds.Distinct().Count() != dto.SeatIds.Count || dto.SeatIds.Any(id => id <= 0))
+        {
+            throw new ValidationException("Seat IDs must be positive and unique.");
+        }
+
+        return await _unitOfWork.ExecuteInSerializableTransactionAsync(async () =>
+        {
+            var session = await _sessionRepository.GetSessionByIdAsync(dto.SessionId, cancellationToken);
+            if (session is null)
+            {
+                throw new NotFoundException($"Session with ID {dto.SessionId} not found.");
+            }
+
+            if (session.Status != SessionStatus.Scheduled || session.StartsAt <= DateTime.UtcNow)
+            {
+                throw new ValidationException("You cannot book tickets for a session that is not scheduled or has already started.");
+            }
+
+            var seats = new List<Seat>(dto.SeatIds.Count);
+            foreach (var seatId in dto.SeatIds)
+            {
+                var seat = await _seatRepository.GetSeatByIdAsync(seatId, cancellationToken);
+                if (seat is null)
+                {
+                    throw new NotFoundException($"Seat with ID {seatId} not found.");
+                }
+
+                if (seat.HallId != session.HallId)
+                {
+                    throw new ValidationException($"Seat {seatId} does not belong to the session's hall.");
+                }
+
+                if (await _bookingRepository.HasActiveBookingAsync(session.Id, seatId, cancellationToken))
+                {
+                    throw new ConflictException($"Seat {seatId} has already been booked for this session.");
+                }
+
+                seats.Add(seat);
+            }
+
+            var bookings = new List<BookingDTO>(seats.Count);
+            foreach (var seat in seats)
+            {
+                var booking = new Booking
+                {
+                    UserId = userId,
+                    SessionId = session.Id,
+                    SeatId = seat.Id,
+                    Status = BookingStatus.Active,
+                    CreatedAt = DateTime.UtcNow
+                };
+                var ticket = new Ticket
+                {
+                    Booking = booking,
+                    TicketCode = Guid.NewGuid().ToString("N"),
+                    FinalPrice = seat.IsVip ? session.VipPrice : session.StandardPrice
+                };
+                booking.Ticket = ticket;
+
+                await _bookingRepository.AddBookingAsync(booking, cancellationToken);
+                var result = _mapper.Map<BookingDTO>(booking);
+                result.MovieTitle = session.Movie.Title;
+                result.SessionStartsAt = session.StartsAt;
+                result.RowNumber = seat.RowNumber;
+                result.SeatNumber = seat.SeatNumber;
+                result.IsVip = seat.IsVip;
+                result.TicketCode = ticket.TicketCode;
+                result.FinalPrice = ticket.FinalPrice;
+                bookings.Add(result);
+            }
+
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            return bookings;
+        }, cancellationToken);
+    }
+
     public async Task<BookingDTO?> GetBookingByIdAsync(
         int id,
         CancellationToken cancellationToken)

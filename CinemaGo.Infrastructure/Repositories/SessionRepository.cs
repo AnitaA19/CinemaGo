@@ -71,6 +71,7 @@ public class SessionRepository : ISessionRepository
      .Include(s => s.Movie)
      .Include(s => s.Hall)
      .Include(s => s.Bookings)
+         .ThenInclude(booking => booking.User)
      .FirstOrDefaultAsync(
          s => s.Id == id,
          cancellationToken);

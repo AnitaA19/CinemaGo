@@ -50,6 +50,43 @@ public sealed class MovieFilteringTests : IDisposable
     }
 
     [Fact]
+    public async Task SalesByMovie_GroupsActiveTicketsAndSumsRevenue()
+    {
+        var movie = await _context.Movies.FirstAsync();
+        var hall = new Hall { Name = "Sales Hall", Capacity = 2 };
+        var firstSeat = new Seat { Hall = hall, RowNumber = 1, SeatNumber = 1 };
+        var secondSeat = new Seat { Hall = hall, RowNumber = 1, SeatNumber = 2 };
+        var user = new User { Username = "sales-user", Email = "sales@example.com", PasswordHash = "hash" };
+        var session = new Session
+        {
+            Movie = movie,
+            Hall = hall,
+            StartsAt = DateTime.UtcNow.AddDays(1),
+            StandardPrice = 10,
+            VipPrice = 20
+        };
+        var firstBooking = new Booking { User = user, Session = session, Seat = firstSeat };
+        var secondBooking = new Booking { User = user, Session = session, Seat = secondSeat };
+        var cancelledBooking = new Booking { User = user, Session = session, Seat = new Seat { Hall = hall, RowNumber = 2, SeatNumber = 1 }, Status = CinemaGo.Domain.Enums.BookingStatus.Cancelled };
+        _context.AddRange(
+            firstBooking,
+            secondBooking,
+            cancelledBooking,
+            new Ticket { Booking = firstBooking, TicketCode = "sales-1", FinalPrice = 10 },
+            new Ticket { Booking = secondBooking, TicketCode = "sales-2", FinalPrice = 20 },
+            new Ticket { Booking = cancelledBooking, TicketCode = "sales-cancelled", FinalPrice = 50 });
+        await _context.SaveChangesAsync();
+
+        var sales = await new MovieRepository(_context).GetSalesByMovieAsync(CancellationToken.None);
+
+        var summary = Assert.Single(sales);
+        Assert.Equal(movie.Id, summary.MovieId);
+        Assert.Equal(movie.Title, summary.Title);
+        Assert.Equal(2, summary.TicketCount);
+        Assert.Equal(30m, summary.Revenue);
+    }
+
+    [Fact]
     public async Task Defaults_ReturnFirstTenOrderedByTitle()
     {
         var result = await _service.GetMoviesAsync(null, null, 1, 10, CancellationToken.None);
