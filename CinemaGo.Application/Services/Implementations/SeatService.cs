@@ -48,28 +48,31 @@ public class SeatService : ISeatService
     {
         ValidatePosition(dto.RowNumber, dto.SeatNumber);
 
-        var hall = await _hallRepository.GetHallByIdAsync(dto.HallId, cancellationToken)
-            ?? throw new NotFoundException("Hall was not found.");
-
-        var hallSeats = await _seatRepository.GetSeatsByHallIdAsync(hall.Id, cancellationToken);
-        EnsurePositionIsFree(hallSeats, dto.RowNumber, dto.SeatNumber, null);
-
-        if (hallSeats.Count >= hall.Capacity)
+        return await _unitOfWork.ExecuteInSerializableTransactionAsync(async () =>
         {
-            throw new ConflictException($"The hall is full (capacity {hall.Capacity}).");
-        }
+            var hall = await _hallRepository.GetHallByIdAsync(dto.HallId, cancellationToken)
+                ?? throw new NotFoundException("Hall was not found.");
 
-        var seat = new Seat
-        {
-            HallId = hall.Id,
-            RowNumber = dto.RowNumber,
-            SeatNumber = dto.SeatNumber,
-            IsVip = dto.IsVip
-        };
+            var hallSeats = await _seatRepository.GetSeatsByHallIdAsync(hall.Id, cancellationToken);
+            EnsurePositionIsFree(hallSeats, dto.RowNumber, dto.SeatNumber, null);
 
-        await _seatRepository.AddSeatAsync(seat, cancellationToken);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
-        return _mapper.Map<SeatDTO>(seat);
+            if (hallSeats.Count >= hall.Capacity)
+            {
+                throw new ConflictException($"The hall is full (capacity {hall.Capacity}).");
+            }
+
+            var seat = new Seat
+            {
+                HallId = hall.Id,
+                RowNumber = dto.RowNumber,
+                SeatNumber = dto.SeatNumber,
+                IsVip = dto.IsVip
+            };
+
+            await _seatRepository.AddSeatAsync(seat, cancellationToken);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            return _mapper.Map<SeatDTO>(seat);
+        }, cancellationToken);
     }
 
     public async Task<SeatDTO?> UpdateSeatAsync(int id, UpdateSeatDTO dto, CancellationToken cancellationToken)
@@ -81,6 +84,12 @@ public class SeatService : ISeatService
         }
 
         ValidatePosition(dto.RowNumber, dto.SeatNumber);
+
+        if (seat.Bookings.Count > 0 &&
+            (seat.RowNumber != dto.RowNumber || seat.SeatNumber != dto.SeatNumber))
+        {
+            throw new ConflictException("A seat with booking history cannot change its row or seat number.");
+        }
 
         var hallSeats = await _seatRepository.GetSeatsByHallIdAsync(seat.HallId, cancellationToken);
         EnsurePositionIsFree(hallSeats, dto.RowNumber, dto.SeatNumber, id);

@@ -122,7 +122,7 @@ All write operations require **Admin**; request bodies are validated (FluentVali
 |---|---|---|
 | `/api/genres` | `{ "name": "Drama" }` | name unique (case-insensitive, 409); a genre assigned to movies cannot be deleted (409) |
 | `/api/halls` | `{ "name": "Hall 1", "capacity": 40 }` | name unique (409); capacity cannot drop below the existing seat count (409); a hall with sessions or seats cannot be deleted (409) |
-| `/api/seats` | create `{ "hallId": 1, "rowNumber": 1, "seatNumber": 1, "isVip": false }`, update without `hallId` | hall must exist (404); row/seat unique per hall (409); hall cannot exceed its capacity (409); a seat with bookings cannot be deleted (409) |
+| `/api/seats` | create `{ "hallId": 1, "rowNumber": 1, "seatNumber": 1, "isVip": false }`, update without `hallId` | hall must exist (404); row/seat unique per hall (409); hall cannot exceed its capacity (409); row/seat position cannot change after any booking (409); a seat with bookings cannot be deleted (409) |
 
 Missing resources return 404 on get/update/delete.
 
@@ -172,8 +172,10 @@ Once an Admin exists the settings are ignored (remove them afterwards); an exist
 ## Concurrency
 
 - **Bookings:** a unique filtered index on `Bookings(SessionId, SeatId) WHERE Status = Active` guarantees one active booking per seat; a lost race surfaces as 409.
+- **Seats and halls:** adding seats and changing hall capacity run in a **Serializable** transaction, preventing concurrent requests from exceeding the hall's capacity.
 - **Sessions:** create/update (hall overlap check) and cancel run in a **Serializable** transaction (`IUnitOfWork.ExecuteInSerializableTransactionAsync`),
   so two simultaneous requests cannot both pass the overlap check.
+- **SQL Server verification:** `SessionConcurrencySqlServerTests` tests parallel capacity/booking requests and applies EF migrations to a fresh temporary database. Set `CINEMAGO_TEST_SQL` to use a specific SQL Server connection; otherwise tests target LocalDB and report skipped when it is unavailable.
 
 ## Database ER diagram
 

@@ -2,6 +2,7 @@ using AutoMapper;
 using CinemaGo.Application.Profiles;
 using CinemaGo.Application.Services.Implementations;
 using CinemaGo.Domain.DTOs.BookingDTOs;
+using CinemaGo.Domain.DTOs.SeatDTOs;
 using CinemaGo.Domain.DTOs.SessionDTOs;
 using CinemaGo.Domain.Enums;
 using CinemaGo.Domain.Entities;
@@ -69,6 +70,16 @@ public sealed class SessionConcurrencySqlServerTests : IDisposable
         context.Halls.Add(new Hall { Name = "Hall A", Capacity = 10 });
         context.Halls.Add(new Hall { Name = "Hall B", Capacity = 10 });
         context.SaveChanges();
+    }
+
+    [SqlServerFact]
+    public async Task Migrations_ApplyToFreshDatabase()
+    {
+        await using var context = CreateContext();
+        await context.Database.MigrateAsync();
+
+        Assert.True(await context.Database.CanConnectAsync());
+        Assert.NotEmpty(await context.Database.GetAppliedMigrationsAsync());
     }
 
     [SqlServerFact]
@@ -144,6 +155,54 @@ public sealed class SessionConcurrencySqlServerTests : IDisposable
 
         await using var verify = CreateContext();
         Assert.Equal(2, await verify.Sessions.CountAsync());
+    }
+
+    [SqlServerFact]
+    public async Task AddSeat_ParallelRequestsAtCapacity_OnlyOneSucceeds()
+    {
+        using (var context = CreateContext())
+        {
+            context.Database.EnsureCreated();
+            context.Halls.Add(new Hall { Name = "Capacity Hall", Capacity = 1 });
+            context.SaveChanges();
+        }
+
+        var catalogMapper = new MapperConfiguration(
+            c => c.AddProfile<CatalogProfile>(), NullLoggerFactory.Instance).CreateMapper();
+        var startGate = new TaskCompletionSource();
+
+        var tasks = Enumerable.Range(1, 8).Select(seatNumber => Task.Run(async () =>
+        {
+            await using var context = CreateContext();
+            var service = new SeatService(
+                new SeatRepository(context),
+                new HallRepository(context),
+                new CinemaGo.Infrastructure.UnitOfWork.UnitOfWork(context),
+                catalogMapper);
+            await startGate.Task;
+
+            try
+            {
+                await service.AddSeatAsync(new CreateSeatDTO
+                {
+                    HallId = 1,
+                    RowNumber = 1,
+                    SeatNumber = seatNumber
+                }, CancellationToken.None);
+                return true;
+            }
+            catch (ConflictException)
+            {
+                return false;
+            }
+        })).ToList();
+
+        startGate.SetResult();
+        var results = await Task.WhenAll(tasks);
+
+        Assert.Equal(1, results.Count(created => created));
+        await using var verify = CreateContext();
+        Assert.Equal(1, await verify.Seats.CountAsync(seat => seat.HallId == 1));
     }
 
     [SqlServerFact]

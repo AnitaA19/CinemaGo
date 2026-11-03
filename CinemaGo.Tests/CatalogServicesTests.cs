@@ -255,6 +255,29 @@ public sealed class CatalogServicesTests : IDisposable
     }
 
     [Fact]
+    public async Task Seat_WithBookingHistory_CannotChangePosition_ButVipFlagCanChange()
+    {
+        var hallId = await NewHallAsync();
+        var seat = await _seats.AddSeatAsync(new CreateSeatDTO { HallId = hallId, RowNumber = 1, SeatNumber = 1 }, Ct);
+        var user = new User { Username = "history-user", Email = "history@example.com", PasswordHash = "h" };
+        var session = new Session { Movie = new Movie { Title = "History", DurationMinutes = 90 }, HallId = hallId, StartsAt = DateTime.UtcNow.AddDays(1), StandardPrice = 1, VipPrice = 2 };
+        _db.Context.Bookings.Add(new Booking { User = user, Session = session, SeatId = seat.Id, Status = BookingStatus.Cancelled });
+        await _db.Context.SaveChangesAsync(Ct);
+        _db.Context.ChangeTracker.Clear();
+
+        await Assert.ThrowsAsync<ConflictException>(() => _seats.UpdateSeatAsync(
+            seat.Id,
+            new UpdateSeatDTO { RowNumber = 2, SeatNumber = 1 },
+            Ct));
+
+        var updated = await _seats.UpdateSeatAsync(
+            seat.Id,
+            new UpdateSeatDTO { RowNumber = 1, SeatNumber = 1, IsVip = true },
+            Ct);
+        Assert.True(updated!.IsVip);
+    }
+
+    [Fact]
     public async Task Seat_Missing_UpdateReturnsNull_DeleteReturnsFalse()
     {
         Assert.Null(await _seats.UpdateSeatAsync(99, new UpdateSeatDTO { RowNumber = 1, SeatNumber = 1 }, Ct));

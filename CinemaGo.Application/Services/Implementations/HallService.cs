@@ -55,28 +55,31 @@ public class HallService : IHallService
 
     public async Task<HallDTO?> UpdateHallAsync(int id, UpdateHallDTO dto, CancellationToken cancellationToken)
     {
-        var hall = await _hallRepository.GetHallByIdAsync(id, cancellationToken);
-        if (hall is null)
+        return await _unitOfWork.ExecuteInSerializableTransactionAsync(async () =>
         {
-            return null;
-        }
+            var hall = await _hallRepository.GetHallByIdAsync(id, cancellationToken);
+            if (hall is null)
+            {
+                return null;
+            }
 
-        var name = NormalizeName(dto.Name);
-        ValidateCapacity(dto.Capacity);
-        await EnsureNameIsUniqueAsync(name, id, cancellationToken);
+            var name = NormalizeName(dto.Name);
+            ValidateCapacity(dto.Capacity);
+            await EnsureNameIsUniqueAsync(name, id, cancellationToken);
 
-        var seats = await _seatRepository.GetSeatsByHallIdAsync(id, cancellationToken);
-        if (dto.Capacity < seats.Count)
-        {
-            throw new ConflictException(
-                $"Capacity cannot be lower than the number of existing seats ({seats.Count}).");
-        }
+            var seats = await _seatRepository.GetSeatsByHallIdAsync(id, cancellationToken);
+            if (dto.Capacity < seats.Count)
+            {
+                throw new ConflictException(
+                    $"Capacity cannot be lower than the number of existing seats ({seats.Count}).");
+            }
 
-        hall.Name = name;
-        hall.Capacity = dto.Capacity;
-        _hallRepository.UpdateHallAsync(hall);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
-        return _mapper.Map<HallDTO>(hall);
+            hall.Name = name;
+            hall.Capacity = dto.Capacity;
+            _hallRepository.UpdateHallAsync(hall);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            return _mapper.Map<HallDTO>(hall);
+        }, cancellationToken);
     }
 
     public async Task<bool> DeleteHallAsync(int id, CancellationToken cancellationToken)
