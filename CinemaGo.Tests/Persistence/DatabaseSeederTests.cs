@@ -3,10 +3,11 @@ using CinemaGo.Domain.Enums;
 using CinemaGo.Web.Seeding;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using CinemaGo.Tests.TestInfrastructure;
 
-namespace CinemaGo.Tests;
+namespace CinemaGo.Tests.Persistence;
 
-public sealed class DatabaseSeederTests : IDisposable
+public sealed class DatabaseSeederTests
 {
     private readonly TestDb _db = new();
     private readonly PasswordHasher<User> _hasher = new();

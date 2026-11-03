@@ -2,7 +2,7 @@ using System.Text.Json;
 using CinemaGo.Web.Middleware;
 using Microsoft.AspNetCore.Http;
 
-namespace CinemaGo.Tests;
+namespace CinemaGo.Tests.Web;
 
 public class ApiResponseMiddlewareTests
 {

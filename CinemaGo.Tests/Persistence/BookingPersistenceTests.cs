@@ -11,10 +11,10 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace CinemaGo.Tests;
+namespace CinemaGo.Tests.Persistence;
 
 // Runs the real repositories and mapping against SQLite, so the unique index is actually enforced.
-public sealed class BookingPersistenceTests : IDisposable
+public sealed class BookingPersistenceTests
 {
     private readonly SqliteConnection _connection = new("DataSource=:memory:");
     private readonly IMapper _mapper = new MapperConfiguration(

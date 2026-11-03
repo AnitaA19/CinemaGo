@@ -7,11 +7,12 @@ using CinemaGo.Domain.Entities;
 using CinemaGo.Domain.Enums;
 using CinemaGo.Domain.Exceptions;
 using CinemaGo.Infrastructure.Repositories;
+using CinemaGo.Tests.TestInfrastructure;
 using Microsoft.EntityFrameworkCore;
 
-namespace CinemaGo.Tests;
+namespace CinemaGo.Tests.Services;
 
-public sealed class CatalogServicesTests : IDisposable
+public sealed class CatalogServicesTests
 {
     private static readonly CancellationToken Ct = CancellationToken.None;
 

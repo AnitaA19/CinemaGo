@@ -12,8 +12,9 @@ using CinemaGo.Infrastructure.Repositories;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using CinemaGo.Tests.TestInfrastructure;
 
-namespace CinemaGo.Tests;
+namespace CinemaGo.Tests.Persistence;
 
 // Skipped when no SQL Server is reachable. Override the server with the CINEMAGO_TEST_SQL environment variable.
 public sealed class SqlServerFactAttribute : FactAttribute

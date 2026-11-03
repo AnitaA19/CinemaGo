@@ -6,10 +6,11 @@ using CinemaGo.Domain.Intefraces;
 using CinemaGo.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using CinemaGo.Tests.TestInfrastructure;
 
-namespace CinemaGo.Tests;
+namespace CinemaGo.Tests.Services;
 
-public sealed class SessionCancellationTests : IDisposable
+public sealed class SessionCancellationTests
 {
     private static readonly CancellationToken Ct = CancellationToken.None;
 

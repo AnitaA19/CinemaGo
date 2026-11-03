@@ -13,10 +13,10 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 
-namespace CinemaGo.Tests;
+namespace CinemaGo.Tests.Services;
 
 // Uses the real repositories, password hasher and JWT generation against SQLite.
-public sealed class AuthServiceTests : IDisposable
+public sealed class AuthServiceTests
 {
     private const string Password = "Str0ng!Password";
 

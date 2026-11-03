@@ -7,10 +7,10 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace CinemaGo.Tests;
+namespace CinemaGo.Tests.TestInfrastructure;
 
 // Real EF Core context on in-memory SQLite so repositories, constraints and cascades behave like production.
-public sealed class TestDb : IDisposable
+public sealed class TestDb
 {
     private readonly SqliteConnection _connection = new("DataSource=:memory:");
 

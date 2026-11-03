@@ -9,11 +9,12 @@ using CinemaGo.Infrastructure.UnitOfWork;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using CinemaGo.Tests.TestInfrastructure;
 
-namespace CinemaGo.Tests;
+namespace CinemaGo.Tests.Services;
 
 // Runs the real repository against SQLite so filtering, sorting and paging are translated to SQL.
-public sealed class SessionPaginationTests : IDisposable
+public sealed class SessionPaginationTests
 {
     private static readonly DateTime Base = new(2030, 1, 1, 10, 0, 0, DateTimeKind.Utc);
 

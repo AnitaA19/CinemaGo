@@ -7,8 +7,9 @@ using CinemaGo.Domain.Enums;
 using CinemaGo.Domain.Exceptions;
 using CinemaGo.Domain.Intefraces;
 using Microsoft.Extensions.Logging.Abstractions;
+using CinemaGo.Tests.TestInfrastructure;
 
-namespace CinemaGo.Tests;
+namespace CinemaGo.Tests.Services;
 
 public class SessionServiceTests
 {

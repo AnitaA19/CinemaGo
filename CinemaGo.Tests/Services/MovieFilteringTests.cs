@@ -10,10 +10,10 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace CinemaGo.Tests;
+namespace CinemaGo.Tests.Services;
 
 // Runs the real repository against SQLite so filtering and paging are translated to SQL.
-public sealed class MovieFilteringTests : IDisposable
+public sealed class MovieFilteringTests
 {
     private readonly SqliteConnection _connection = new("DataSource=:memory:");
     private readonly CinemaDbContext _context;

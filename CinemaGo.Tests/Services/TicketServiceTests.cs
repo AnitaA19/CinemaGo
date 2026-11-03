@@ -4,7 +4,7 @@ using CinemaGo.Domain.Exceptions;
 using CinemaGo.Domain.Intefraces;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace CinemaGo.Tests;
+namespace CinemaGo.Tests.Services;
 
 public class TicketServiceTests
 {

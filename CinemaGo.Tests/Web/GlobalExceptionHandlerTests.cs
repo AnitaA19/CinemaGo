@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace CinemaGo.Tests;
+namespace CinemaGo.Tests.Web;
 
 public class GlobalExceptionHandlerTests
 {
