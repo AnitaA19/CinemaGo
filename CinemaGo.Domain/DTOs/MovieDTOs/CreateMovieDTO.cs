@@ -8,5 +8,7 @@ public class CreateMovieDTO
 
     public int AgeRating { get; set; }
 
+    public string? PosterUrl { get; set; }
+
     public List<int> GenreIds { get; set; } = new();
 }

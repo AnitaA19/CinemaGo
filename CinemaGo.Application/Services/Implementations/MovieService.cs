@@ -117,6 +117,7 @@ namespace CinemaGo.Application.Services.Implementations
             existingMovie.Title = updateMovieDto.Title;
             existingMovie.DurationMinutes = updateMovieDto.DurationMinutes;
             existingMovie.AgeRating = updateMovieDto.AgeRating;
+            existingMovie.PosterUrl = string.IsNullOrWhiteSpace(updateMovieDto.PosterUrl) ? null : updateMovieDto.PosterUrl.Trim();
             ValidateMovie(existingMovie);
 
             var genres = await ResolveGenresAsync(updateMovieDto.GenreIds, cancellationToken);

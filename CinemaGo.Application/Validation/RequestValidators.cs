@@ -45,6 +45,14 @@ public sealed class LoginDtoValidator : AbstractValidator<LoginDTO>
     }
 }
 
+internal static class MoviePosterUrl
+{
+    public static bool IsValid(string? url) =>
+        string.IsNullOrWhiteSpace(url)
+        || (url.StartsWith('/') && !url.StartsWith("//"))
+        || (Uri.TryCreate(url, UriKind.Absolute, out var uri) && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps));
+}
+
 public sealed class CreateMovieDtoValidator : AbstractValidator<CreateMovieDTO>
 {
     public CreateMovieDtoValidator()
@@ -58,6 +66,10 @@ public sealed class CreateMovieDtoValidator : AbstractValidator<CreateMovieDTO>
 
         RuleFor(dto => dto.AgeRating)
             .InclusiveBetween(0, 21);
+
+        RuleFor(dto => dto.PosterUrl)
+            .MaximumLength(500)
+            .Must(MoviePosterUrl.IsValid).WithMessage("Poster URL must be an http(s) URL or a site-relative path starting with '/'.");
 
         RuleFor(dto => dto.GenreIds)
             .NotNull()
@@ -80,6 +92,10 @@ public sealed class UpdateMovieDtoValidator : AbstractValidator<UpdateMovieDTO>
 
         RuleFor(dto => dto.AgeRating)
             .InclusiveBetween(0, 21);
+
+        RuleFor(dto => dto.PosterUrl)
+            .MaximumLength(500)
+            .Must(MoviePosterUrl.IsValid).WithMessage("Poster URL must be an http(s) URL or a site-relative path starting with '/'.");
 
         RuleFor(dto => dto.GenreIds)
             .NotNull()

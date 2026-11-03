@@ -10,6 +10,8 @@ public class Movie
 
     public int AgeRating { get; set; }
 
+    public string? PosterUrl { get; set; }
+
     public ICollection<MovieGenre> MovieGenres { get; set; } = new List<MovieGenre>();
 
     public ICollection<Session> Sessions { get; set; } = new List<Session>();

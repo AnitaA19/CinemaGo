@@ -8,6 +8,7 @@ namespace CinemaGo.Domain.DTOs.MovieDTOs
         public string Title { get; set; } = string.Empty;
         public int DurationMinutes { get; set; }
         public int AgeRating { get; set; }
+        public string? PosterUrl { get; set; }
         public List<GenreDTO> Genres { get; set; } = new();
     }
 }

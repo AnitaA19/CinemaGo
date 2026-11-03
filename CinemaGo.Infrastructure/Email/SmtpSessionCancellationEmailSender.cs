@@ -66,10 +66,13 @@ public sealed class SmtpSessionCancellationEmailSender : ISessionCancellationEma
         {
             From = new MailAddress(from),
             Subject = $"CinemaGo screening cancelled: {movieTitle}",
-            Body = $"The screening of {movieTitle} (session {sessionId}) scheduled for {startsAt:O} has been cancelled. " +
-                   "Your active booking has also been cancelled. Please contact the cinema if you need assistance.",
+            Body = EmailTemplates.SessionCancelledText(sessionId, movieTitle, startsAt),
             IsBodyHtml = false
         };
+        message.AlternateViews.Add(AlternateView.CreateAlternateViewFromString(
+            EmailTemplates.SessionCancelledHtml(sessionId, movieTitle, startsAt),
+            System.Text.Encoding.UTF8,
+            "text/html"));
 
         foreach (var recipient in recipientList)
         {

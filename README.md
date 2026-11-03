@@ -1,4 +1,4 @@
-﻿# CinemaGo
+# CinemaGo
 
 ASP.NET Core Web API (.NET 10) for a cinema: movies and showtimes (sessions).
 Layered solution: `Domain` (entities, DTOs, exceptions) → `Application` (services) → `Infrastructure` (EF Core / SQL Server) → `Web` (controllers).
@@ -31,6 +31,7 @@ Layered solution: `Domain` (entities, DTOs, exceptions) → `Application` (servi
 | GET | `/api/movies/sales` | **Admin** (active ticket count and revenue grouped by movie) |
 | GET | `/api/genres`, `/api/genres/{id}`, `/api/halls`, `/api/halls/{id}`, `/api/seats` (`?hallId=`), `/api/seats/{id}` | anonymous |
 | POST/PUT/DELETE | `/api/movies`, `/api/sessions`, `/api/genres`, `/api/halls`, `/api/seats` | **Admin** |
+| POST/DELETE | `/api/movies/{id}/poster` (upload / remove poster image) | **Admin** |
 | POST | `/api/sessions/{id}/cancel` | **Admin** |
 | POST | `/api/bookings`, `/api/bookings/batch` | JWT (any user) |
 | GET | `/api/bookings/my` | JWT (own bookings) |
@@ -136,7 +137,16 @@ Missing resources return 404 on get/update/delete.
 
 - Unknown genre ids → 400 (nothing is saved); duplicates are ignored.
 - `PUT` **replaces** the genre set (`[]` or omitted removes all genres).
+- `posterUrl` (optional, max 500 chars) is an `http(s)` URL or a site-relative path such as `/uploads/posters/<file>`; see [Movie posters](#movie-posters).
 - Movie responses include `"genres": [{ "id": 5, "name": "Sci-Fi" }]`; `GET /api/movies?genreId=` filters by genre.
+
+## Movie posters
+
+`POST /api/movies/{id}/poster` (**Admin**, `multipart/form-data` with a `file` field) stores a poster image and sets the movie's `posterUrl` to `/uploads/posters/<random>.<ext>`; `DELETE /api/movies/{id}/poster` removes it.
+
+- Only JPEG, PNG and WebP are accepted, up to 5 MB. The type is detected from the file's content, not its name or declared content type (400 otherwise); 404 for an unknown movie.
+- Files are saved under `CinemaGo.Web/App_Data/uploads` (git-ignored; override with `Uploads:Path`) and served as static files at `/uploads/...`. Uploading a new poster deletes the previous uploaded file.
+- Instead of uploading, `posterUrl` can also be set to an external image link through `POST/PUT /api/movies`.
 
 ## Session cancellation
 
@@ -152,8 +162,9 @@ serializable transaction, so the seats become available again and no new booking
 
 Seeding is idempotent
 and runs at startup when `Seed:Enabled` is `true` (enabled in `appsettings.Development.json`). Startup then also applies pending migrations.
-It creates 7 genres, 5 movies with genres, 3 halls (`Hall 1` 5×8, `Hall 2` 6×10, `Hall 3` 4×6 seats, last row VIP; capacity = seat count).
-Sessions, users and bookings are not seeded.
+It creates 7 genres, 5 movies with genres and poster links, 3 halls (`Hall 1` 5×8, `Hall 2` 6×10, `Hall 3` 4×6 seats, last row VIP; capacity = seat count).
+
+When `Seed:DemoData` is also `true` (enabled in `appsettings.Development.json`), a one-time set of test data is added for manual testing: an admin (`demo_admin`) and customers `alice`, `bob`, `carol`, `dave` (password `Passw0rd!Demo1`, emails `<name>@cinemago.test`), 9 sessions (2 completed, 6 scheduled, 1 cancelled), and 8 bookings per session with tickets for the active ones (some cancelled). It is skipped if `demo.admin@cinemago.test` already exists. Do not enable it in production.
 
 ## Initial Admin
 
@@ -203,6 +214,7 @@ erDiagram
         string Title
         int DurationMinutes
         int AgeRating
+        string PosterUrl
     }
     GENRE {
         int Id PK
@@ -254,6 +266,7 @@ erDiagram
 - Errors are mapped centrally (`GlobalExceptionHandler`) to RFC-style `application/problem+json` ProblemDetails:
   `ConflictException`→409, `ForbiddenException`→403, with validation errors in the `errors` extension.
 - Request DTOs are validated with FluentValidation (`RequestValidators.cs`); invalid models return 400 automatically.
+- Session cancellation emails are sent as HTML (styled like the frontend's dark/gold theme, templates in `EmailTemplates.cs`) with a plain-text alternative.
 - Session start times are UTC: values must carry a `Z`/offset and be in the future.
 
 

@@ -28,6 +28,7 @@ public class CinemaDbContext : DbContext
             entity.HasKey(m => m.Id);
             entity.Property(m => m.Title).IsRequired().HasMaxLength(200);
             entity.Property(m => m.DurationMinutes).IsRequired();
+            entity.Property(m => m.PosterUrl).HasMaxLength(500);
             entity.Property(m => m.AgeRating).IsRequired();
             entity.ToTable(t =>
             {

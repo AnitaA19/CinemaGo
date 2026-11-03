@@ -1,4 +1,4 @@
-﻿using System.Security.Claims;
+using System.Security.Claims;
 using System.Text;
 using CinemaGo.Application.Profiles;
 using CinemaGo.Application.Services.Implementations;
@@ -12,6 +12,7 @@ using CinemaGo.Infrastructure.Repositories;
 using CinemaGo.Infrastructure.UnitOfWork;
 using CinemaGo.Web.Middleware;
 using CinemaGo.Web.Seeding;
+using CinemaGo.Web.Uploads;
 using CinemaGo.Web.Responses;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -43,6 +44,11 @@ namespace Cinema
             if (seedEnabled)
             {
                 await DatabaseSeeder.SeedReferenceDataAsync(context);
+
+                if (app.Configuration.GetValue<bool>("Seed:DemoData"))
+                {
+                    await DatabaseSeeder.SeedDemoDataAsync(context, scope.ServiceProvider.GetRequiredService<IPasswordHasher<User>>());
+                }
             }
 
             if (adminConfigured)
@@ -71,6 +77,8 @@ namespace Cinema
                         "DefaultConnection")));
 
             // Repositories
+            builder.Services.AddSingleton(new PosterStorage(
+                builder.Configuration["Uploads:Path"] ?? Path.Combine(builder.Environment.ContentRootPath, "App_Data", "uploads")));
             builder.Services.AddScoped<IBookingRepository, BookingRepository>();
             builder.Services.AddScoped<IGenreRepository, GenreRepository>();
             builder.Services.AddScoped<IHallRepository, HallRepository>();
@@ -186,13 +194,37 @@ namespace Cinema
             builder.Services.AddOpenApi();
 
             builder.Services.AddSwaggerGen(options =>
+            {
                 options.SwaggerDoc(
                     "v1",
                     new()
                     {
                         Title = "CinemaGo API",
                         Version = "v1"
-                    }));
+                    });
+
+                options.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.OpenApiSecurityScheme
+                {
+                    Type = Microsoft.OpenApi.SecuritySchemeType.Http,
+                    Scheme = "bearer",
+                    BearerFormat = "JWT",
+                    Description = "Paste the JWT returned by /api/auth/login (without the 'Bearer ' prefix)."
+                });
+
+                options.AddSecurityRequirement(document => new Microsoft.OpenApi.OpenApiSecurityRequirement
+                {
+                    [new Microsoft.OpenApi.OpenApiSecuritySchemeReference("Bearer", document)] = new List<string>()
+                });
+            });
+
+            builder.Services.AddCors(options =>
+                options.AddPolicy("LocalClients", policy =>
+                    policy.WithOrigins(
+                            "https://localhost:7086",
+                            "http://localhost:5005",
+                            "http://localhost:47219")
+                        .AllowAnyHeader()
+                        .AllowAnyMethod()));
 
             var app = builder.Build();
 
@@ -211,7 +243,17 @@ namespace Cinema
                         "CinemaGo API v1"));
             }
 
+            app.UseCors("LocalClients");
+
             app.UseHttpsRedirection();
+
+            app.UseStaticFiles(new StaticFileOptions
+            {
+                FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(
+                    app.Services.GetRequiredService<PosterStorage>().RootPath),
+                RequestPath = PosterStorage.RequestPath,
+                OnPrepareResponse = ctx => ctx.Context.Response.Headers.CacheControl = "public,max-age=31536000,immutable"
+            });
 
             // Authentication must run before authorization.
             app.UseAuthentication();

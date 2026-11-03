@@ -1,4 +1,4 @@
-﻿using CinemaGo.Domain.Entities;
+using CinemaGo.Domain.Entities;
 using CinemaGo.Domain.Enums;
 using CinemaGo.Infrastructure.Data;
 using Microsoft.AspNetCore.Identity;
@@ -20,7 +20,17 @@ public static class DatabaseSeeder
         ("The Conjuring", 112, 18, ["Horror", "Thriller"])
     ];
 
-    // Rows × seats per row; the last row of every hall is VIP.
+    // Poster images are hosted on Wikipedia (film poster files); admins can replace them via the movie form.
+    private static readonly Dictionary<string, string> PosterUrls = new()
+    {
+        ["Dune"] = "https://en.wikipedia.org/wiki/Special:FilePath/Dune_(2021_film).jpg?width=500",
+        ["Inception"] = "https://en.wikipedia.org/wiki/Special:FilePath/Inception_(2010)_theatrical_poster.jpg?width=500",
+        ["The Dark Knight"] = "https://en.wikipedia.org/wiki/Special:FilePath/The_Dark_Knight_(2008_film).jpg?width=500",
+        ["Toy Story"] = "https://en.wikipedia.org/wiki/Special:FilePath/Toy_Story.jpg?width=500",
+        ["The Conjuring"] = "https://en.wikipedia.org/wiki/Special:FilePath/The_Conjuring_poster.jpg?width=500"
+    };
+
+    // Rows × seats per row
     private static readonly (string Name, int Rows, int SeatsPerRow)[] Halls =
     [
         ("Hall 1", 5, 8),
@@ -55,6 +65,11 @@ public static class DatabaseSeeder
                     movie.MovieGenres.Add(new MovieGenre { Genre = genresByName[genreName] });
                 }
             }
+
+            if ((movie.PosterUrl is null || movie.PosterUrl.StartsWith("/posters/")) && PosterUrls.TryGetValue(title, out var posterUrl))
+            {
+                movie.PosterUrl = posterUrl;
+            }
         }
         await context.SaveChangesAsync(cancellationToken);
 
@@ -84,7 +99,96 @@ public static class DatabaseSeeder
         await context.SaveChangesAsync(cancellationToken);
     }
 
-    // Creates the first Admin only when no Admin exists and credentials were supplied via configuration
+    // Test data for development: users (password "Passw0rd!Demo1"), sessions, bookings and tickets. Skipped if demo users exist.
+    public static async Task SeedDemoDataAsync(
+        CinemaDbContext context,
+        IPasswordHasher<User> passwordHasher,
+        CancellationToken cancellationToken = default)
+    {
+        const string demoPassword = "Passw0rd!Demo1";
+
+        if (await context.Users.AnyAsync(u => u.Email == "demo.admin@cinemago.test", cancellationToken))
+        {
+            return;
+        }
+
+        var users = new List<User>
+        {
+            new() { Username = "demo_admin", Email = "demo.admin@cinemago.test", Role = UserRole.Admin },
+            new() { Username = "alice", Email = "alice@cinemago.test", Role = UserRole.Customer },
+            new() { Username = "bob", Email = "bob@cinemago.test", Role = UserRole.Customer },
+            new() { Username = "carol", Email = "carol@cinemago.test", Role = UserRole.Customer },
+            new() { Username = "dave", Email = "dave@cinemago.test", Role = UserRole.Customer }
+        };
+        foreach (var user in users)
+        {
+            user.PasswordHash = passwordHasher.HashPassword(user, demoPassword);
+        }
+        context.Users.AddRange(users);
+
+        var movies = await context.Movies.OrderBy(m => m.Id).ToListAsync(cancellationToken);
+        var halls = await context.Halls.Include(h => h.Seats).OrderBy(h => h.Id).ToListAsync(cancellationToken);
+        if (movies.Count == 0 || halls.Count == 0)
+        {
+            return;
+        }
+
+        var today = DateTime.UtcNow.Date;
+        var sessions = new List<Session>();
+        // Past (completed), today/upcoming (scheduled) and one cancelled session.
+        for (var i = 0; i < 9; i++)
+        {
+            var dayOffset = i switch { < 2 => -2 - i, < 7 => i - 2, _ => i - 5 };
+            var status = i < 2 ? SessionStatus.Completed : i == 8 ? SessionStatus.Cancelled : SessionStatus.Scheduled;
+            sessions.Add(new Session
+            {
+                Movie = movies[i % movies.Count],
+                Hall = halls[i % halls.Count],
+                StartsAt = today.AddDays(dayOffset).AddHours(12 + (i % 4) * 3),
+                StandardPrice = 8 + (i % 3) * 2,
+                VipPrice = 14 + (i % 3) * 2,
+                Status = status
+            });
+        }
+        context.Sessions.AddRange(sessions);
+        await context.SaveChangesAsync(cancellationToken);
+
+        var customers = users.Where(u => u.Role == UserRole.Customer).ToList();
+        var random = new Random(42);
+        foreach (var session in sessions)
+        {
+            var seats = session.Hall.Seats.OrderBy(s => s.RowNumber).ThenBy(s => s.SeatNumber).ToList();
+            // Take a mix of regular and VIP seats; VIP is the last row.
+            var chosen = seats.Take(6).Concat(seats.TakeLast(2)).ToList();
+            for (var n = 0; n < chosen.Count; n++)
+            {
+                var seat = chosen[n];
+                var cancelled = session.Status == SessionStatus.Cancelled || n % 5 == 4;
+                var booking = new Booking
+                {
+                    User = customers[random.Next(customers.Count)],
+                    Session = session,
+                    Seat = seat,
+                    Status = cancelled ? BookingStatus.Cancelled : BookingStatus.Active,
+                    CreatedAt = session.StartsAt.AddDays(-random.Next(1, 5))
+                };
+                context.Bookings.Add(booking);
+
+                if (!cancelled)
+                {
+                    booking.Ticket = new Ticket
+                    {
+                        TicketCode = Guid.NewGuid().ToString("N")[..12].ToUpperInvariant(),
+                        FinalPrice = seat.IsVip ? session.VipPrice : session.StandardPrice
+                    };
+                }
+            }
+        }
+
+        await context.SaveChangesAsync(cancellationToken);
+    }
+
+    // Creates the first Admin only
     // (user secrets / environment variables). Returns true when an account was created.
     public static async Task<bool> EnsureInitialAdminAsync(
         CinemaDbContext context,
