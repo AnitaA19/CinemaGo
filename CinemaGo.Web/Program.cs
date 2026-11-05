@@ -25,14 +25,18 @@ namespace Cinema
 {
     public class Program
     {
-        // Applies migrations and seeds data when "Seed:Enabled" is true and/or "InitialAdmin" settings are supplied.
+        // Applies migrations and seeds data when "Seed:Enabled" is true and/or bootstrap credentials are supplied.
         private static async Task InitializeDatabaseAsync(WebApplication app)
         {
             var seedEnabled = app.Configuration.GetValue<bool>("Seed:Enabled");
-            var adminSection = app.Configuration.GetSection("InitialAdmin");
-            var adminConfigured = !string.IsNullOrWhiteSpace(adminSection["Password"]);
+            var superAdminSection = app.Configuration.GetSection("InitialSuperAdmin");
+            var legacyAdminSection = app.Configuration.GetSection("InitialAdmin");
+            var bootstrapSection = !string.IsNullOrWhiteSpace(superAdminSection["Password"])
+                ? superAdminSection
+                : legacyAdminSection;
+            var superAdminConfigured = !string.IsNullOrWhiteSpace(bootstrapSection["Password"]);
 
-            if (!seedEnabled && !adminConfigured)
+            if (!seedEnabled && !superAdminConfigured)
             {
                 return;
             }
@@ -51,18 +55,18 @@ namespace Cinema
                 }
             }
 
-            if (adminConfigured)
+            if (superAdminConfigured)
             {
-                var created = await DatabaseSeeder.EnsureInitialAdminAsync(
+                var created = await DatabaseSeeder.EnsureInitialSuperAdminAsync(
                     context,
                     scope.ServiceProvider.GetRequiredService<IPasswordHasher<User>>(),
-                    adminSection["Username"],
-                    adminSection["Email"],
-                    adminSection["Password"]);
+                    bootstrapSection["Username"],
+                    bootstrapSection["Email"],
+                    bootstrapSection["Password"]);
 
                 if (created)
                 {
-                    app.Logger.LogInformation("Initial admin account created.");
+                    app.Logger.LogInformation("Initial super-admin account created.");
                 }
             }
         }

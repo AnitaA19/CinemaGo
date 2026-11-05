@@ -63,53 +63,66 @@ public sealed class DatabaseSeederTests
         await _db.Context.Seats.CountAsync());
 
     [Fact]
-    public async Task InitialAdmin_CreatesAdminWithHashedPassword()
+    public async Task InitialSuperAdmin_CreatesSuperAdminWithHashedPassword()
     {
-        var created = await DatabaseSeeder.EnsureInitialAdminAsync(_db.Context, _hasher, "admin", "admin@cinema.test", "S3cure-Passw0rd!");
+        var created = await DatabaseSeeder.EnsureInitialSuperAdminAsync(_db.Context, _hasher, "admin", "admin@cinema.test", "S3cure-Passw0rd!");
 
         Assert.True(created);
         var admin = await _db.Context.Users.SingleAsync();
-        Assert.Equal(UserRole.Admin, admin.Role);
+        Assert.Equal(UserRole.SuperAdmin, admin.Role);
         Assert.NotEqual("S3cure-Passw0rd!", admin.PasswordHash);
         Assert.Equal(PasswordVerificationResult.Success, _hasher.VerifyHashedPassword(admin, admin.PasswordHash, "S3cure-Passw0rd!"));
     }
 
     [Fact]
-    public async Task InitialAdmin_RunTwice_CreatesOnlyOne()
+    public async Task InitialSuperAdmin_RunTwice_CreatesOnlyOne()
     {
-        await DatabaseSeeder.EnsureInitialAdminAsync(_db.Context, _hasher, "admin", "admin@cinema.test", "S3cure-Passw0rd!");
-        var again = await DatabaseSeeder.EnsureInitialAdminAsync(_db.Context, _hasher, "other", "other@cinema.test", "S3cure-Passw0rd!");
+        await DatabaseSeeder.EnsureInitialSuperAdminAsync(_db.Context, _hasher, "admin", "admin@cinema.test", "S3cure-Passw0rd!");
+        var again = await DatabaseSeeder.EnsureInitialSuperAdminAsync(_db.Context, _hasher, "other", "other@cinema.test", "S3cure-Passw0rd!");
 
         Assert.False(again);
         Assert.Equal(1, await _db.Context.Users.CountAsync());
+    }
+
+    [Fact]
+    public async Task InitialSuperAdmin_CreatesAccountWhenRegularAdminExists()
+    {
+        _db.Context.Users.Add(new User { Username = "admin", Email = "admin@cinema.test", PasswordHash = "hash", Role = UserRole.Admin });
+        await _db.Context.SaveChangesAsync();
+
+        var created = await DatabaseSeeder.EnsureInitialSuperAdminAsync(_db.Context, _hasher, "root", "root@cinema.test", "S3cure-Passw0rd!");
+
+        Assert.True(created);
+        Assert.Equal(1, await _db.Context.Users.CountAsync(user => user.Role == UserRole.SuperAdmin));
+        Assert.Equal(1, await _db.Context.Users.CountAsync(user => user.Role == UserRole.Admin));
     }
 
     [Theory]
     [InlineData(null, null, null)]
     [InlineData("admin", "admin@cinema.test", "")]
     [InlineData("", "admin@cinema.test", "S3cure-Passw0rd!")]
-    public async Task InitialAdmin_NotConfigured_DoesNothing(string? user, string? email, string? password)
+    public async Task InitialSuperAdmin_NotConfigured_DoesNothing(string? user, string? email, string? password)
     {
-        Assert.False(await DatabaseSeeder.EnsureInitialAdminAsync(_db.Context, _hasher, user, email, password));
+        Assert.False(await DatabaseSeeder.EnsureInitialSuperAdminAsync(_db.Context, _hasher, user, email, password));
         Assert.Empty(_db.Context.Users);
     }
 
     [Fact]
-    public async Task InitialAdmin_WeakPassword_IsRejected()
+    public async Task InitialSuperAdmin_WeakPassword_IsRejected()
     {
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            DatabaseSeeder.EnsureInitialAdminAsync(_db.Context, _hasher, "admin", "admin@cinema.test", "short"));
+            DatabaseSeeder.EnsureInitialSuperAdminAsync(_db.Context, _hasher, "admin", "admin@cinema.test", "short"));
         Assert.Empty(_db.Context.Users);
     }
 
     [Fact]
-    public async Task InitialAdmin_ExistingCustomerWithSameEmail_IsNotPromoted()
+    public async Task InitialSuperAdmin_ExistingCustomerWithSameEmail_IsNotPromoted()
     {
         _db.Context.Users.Add(new User { Username = "bob", Email = "admin@cinema.test", PasswordHash = "x", Role = UserRole.Customer });
         await _db.Context.SaveChangesAsync();
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            DatabaseSeeder.EnsureInitialAdminAsync(_db.Context, _hasher, "admin", "admin@cinema.test", "S3cure-Passw0rd!"));
+            DatabaseSeeder.EnsureInitialSuperAdminAsync(_db.Context, _hasher, "admin", "admin@cinema.test", "S3cure-Passw0rd!"));
         Assert.Equal(UserRole.Customer, (await _db.Context.Users.SingleAsync()).Role);
     }
 }

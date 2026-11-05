@@ -28,6 +28,7 @@ Layered solution: `Domain` (entities, DTOs, exceptions) → `Application` (servi
 |---|---|---|
 | POST | `/api/auth/register`, `/api/auth/login` | anonymous |
 | POST | `/api/auth/refresh`, `/api/auth/logout` | anonymous (refresh token required) |
+| POST | `/api/auth/admins` | **SuperAdmin** |
 | GET | `/api/movies`, `/api/movies/{id}`, `/api/sessions`, `/api/sessions/{id}` | anonymous |
 | GET | `/api/movies/sales` | **Admin** (active ticket count and revenue grouped by movie) |
 | GET | `/api/genres`, `/api/genres/{id}`, `/api/halls`, `/api/halls/{id}`, `/api/seats` (`?hallId=`), `/api/seats/{id}` | anonymous |
@@ -41,7 +42,7 @@ Layered solution: `Domain` (entities, DTOs, exceptions) → `Application` (servi
 | GET | `/api/bookings` | **Admin** |
 | GET | `/api/tickets/{id}` | JWT (ticket owner) or **Admin** |
 
-Send the JWT as `Authorization: Bearer <token>`. Public registration always creates a `Customer`; the role cannot be supplied by the client. See [Initial Admin](#initial-admin).
+See [Super-admin and Admin accounts](#super-admin-and-admin-accounts).
 
 ## Bookings
 
@@ -167,19 +168,19 @@ It creates 7 genres, 5 movies with genres and poster links, 3 halls (`Hall 1` 5�
 
 When `Seed:DemoData` is also `true` (enabled in `appsettings.Development.json`), a one-time set of test data is added for manual testing: an admin (`demo_admin`) and customers `alice`, `bob`, `carol`, `dave` (password `Passw0rd!Demo1`, emails `<name>@cinemago.test`), 9 sessions (2 completed, 6 scheduled, 1 cancelled), and 8 bookings per session with tickets for the active ones (some cancelled). It is skipped if `demo.admin@cinemago.test` already exists. Do not enable it in production.
 
-## Initial Admin
+## Super-admin and Admin accounts
 
-There is no way to register as Admin through the API. The first Admin is created at startup from configuration, only when **no Admin exists yet**
-and an `InitialAdmin:Password` is supplied. Keep the credentials out of source control (user secrets or environment variables):
+No role can be selected during public registration. Bootstrap the single SuperAdmin account at startup using secrets or environment variables (keep credentials out of source control):
 
 ```
-dotnet user-secrets set "InitialAdmin:Username" "admin" --project CinemaGo.Web
-dotnet user-secrets set "InitialAdmin:Email" "admin@example.com" --project CinemaGo.Web
-dotnet user-secrets set "InitialAdmin:Password" "a-long-random-password" --project CinemaGo.Web
+dotnet user-secrets set "InitialSuperAdmin:Username" "root" --project CinemaGo.Web
+dotnet user-secrets set "InitialSuperAdmin:Email" "root@example.com" --project CinemaGo.Web
+dotnet user-secrets set "InitialSuperAdmin:Password" "a-long-random-password" --project CinemaGo.Web
 ```
 
-(or `InitialAdmin__Username` / `InitialAdmin__Email` / `InitialAdmin__Password` environment variables). The password needs at least 12 characters and is stored hashed.
-Once an Admin exists the settings are ignored (remove them afterwards); an existing non-admin account is never promoted automatically.
+The password needs at least 12 characters and is stored hashed. The old `InitialAdmin:*` setting names are still accepted for existing deployments, but now bootstrap a SuperAdmin. Once a SuperAdmin exists, bootstrap settings are ignored; an existing account is never promoted automatically. The database enforces at most one SuperAdmin.
+
+A SuperAdmin can create regular Admin accounts with `POST /api/auth/admins`, using the same username, email, and password JSON shape as registration. This endpoint requires a SuperAdmin JWT. Created accounts cannot create other admins or super-admins. SuperAdmin tokens also include the Admin role for access to existing admin features.
 
 ## Concurrency
 

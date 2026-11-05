@@ -81,6 +81,48 @@ public class AuthService : Services.Interfaces.IAuthService
         return await GenerateAuthResponseAsync(user, cancellationToken);
     }
 
+    public async Task<AdminCreatedDTO> CreateAdminAsync(
+        RegisterDTO dto,
+        CancellationToken cancellationToken)
+    {
+        var username = dto.Username.Trim();
+        var email = dto.Email.Trim();
+
+        if (username.Length < 3 || string.IsNullOrWhiteSpace(email))
+        {
+            throw new ValidationException("Username and email are required.");
+        }
+
+        if (await _userRepository.GetUserByUsernameAsync(username, cancellationToken) is not null)
+        {
+            throw new ConflictException("Username is already taken.");
+        }
+
+        if (await _userRepository.GetUserByEmailAsync(email, cancellationToken) is not null)
+        {
+            throw new ConflictException("Email is already registered.");
+        }
+
+        var admin = new User
+        {
+            Username = username,
+            Email = email,
+            Role = UserRole.Admin
+        };
+        admin.PasswordHash = _passwordHasher.HashPassword(admin, dto.Password);
+
+        await _userRepository.AddUserAsync(admin, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return new AdminCreatedDTO
+        {
+            UserId = admin.Id,
+            Username = admin.Username,
+            Email = admin.Email,
+            Role = admin.Role.ToString()
+        };
+    }
+
     public async Task<AuthResponseDTO> LoginAsync(
         LoginDTO dto,
         CancellationToken cancellationToken)
@@ -222,6 +264,11 @@ public class AuthService : Services.Interfaces.IAuthService
             new(ClaimTypes.Email, user.Email),
             new(ClaimTypes.Role, user.Role.ToString())
         };
+
+        if (user.Role == UserRole.SuperAdmin)
+        {
+            claims.Add(new Claim(ClaimTypes.Role, UserRole.Admin.ToString()));
+        }
 
         var key = new SymmetricSecurityKey(
             Encoding.UTF8.GetBytes(secretKey));

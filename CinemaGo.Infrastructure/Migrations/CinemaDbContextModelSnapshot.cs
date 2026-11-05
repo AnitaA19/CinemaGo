@@ -330,6 +330,10 @@ namespace CinemaGo.Infrastructure.Migrations
                     b.HasIndex("Email")
                         .IsUnique();
 
+                    b.HasIndex("Role")
+                        .IsUnique()
+                        .HasFilter("[Role] = 3");
+
                     b.HasIndex("Username")
                         .IsUnique();
 

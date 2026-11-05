@@ -132,6 +132,9 @@ public class CinemaDbContext : DbContext
             entity.Property(u => u.Role).IsRequired();
             entity.HasIndex(u => u.Email).IsUnique();
             entity.HasIndex(u => u.Username).IsUnique();
+            entity.HasIndex(u => u.Role)
+                .IsUnique()
+                .HasFilter("[Role] = 3");
 
             entity.HasMany(u => u.Bookings)
                 .WithOne(b => b.User)

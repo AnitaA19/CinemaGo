@@ -188,9 +188,8 @@ public static class DatabaseSeeder
         await context.SaveChangesAsync(cancellationToken);
     }
 
-    // Creates the first Admin only
-    // (user secrets / environment variables). Returns true when an account was created.
-    public static async Task<bool> EnsureInitialAdminAsync(
+    // Creates the single SuperAdmin account from user secrets or environment variables.
+    public static async Task<bool> EnsureInitialSuperAdminAsync(
         CinemaDbContext context,
         IPasswordHasher<User> passwordHasher,
         string? username,
@@ -203,7 +202,7 @@ public static class DatabaseSeeder
             return false;
         }
 
-        if (await context.Users.AnyAsync(u => u.Role == UserRole.Admin, cancellationToken))
+        if (await context.Users.AnyAsync(u => u.Role == UserRole.SuperAdmin, cancellationToken))
         {
             return false;
         }
@@ -214,18 +213,18 @@ public static class DatabaseSeeder
         if (username.Length < 3 || password.Length < 12 || !email.Contains('@'))
         {
             throw new InvalidOperationException(
-                "Initial admin settings are invalid: username needs 3+ characters, a valid email and a password of 12+ characters.");
+                "Initial super-admin settings are invalid: username needs 3+ characters, a valid email and a password of 12+ characters.");
         }
 
         if (await context.Users.AnyAsync(u => u.Username == username || u.Email == email, cancellationToken))
         {
             throw new InvalidOperationException(
-                "Initial admin username or email is already used by a non-admin account; refusing to promote it automatically.");
+                "Initial super-admin username or email is already used by another account; refusing to promote it automatically.");
         }
 
-        var admin = new User { Username = username, Email = email, Role = UserRole.Admin };
-        admin.PasswordHash = passwordHasher.HashPassword(admin, password);
-        context.Users.Add(admin);
+        var superAdmin = new User { Username = username, Email = email, Role = UserRole.SuperAdmin };
+        superAdmin.PasswordHash = passwordHasher.HashPassword(superAdmin, password);
+        context.Users.Add(superAdmin);
 
         try
         {
@@ -233,8 +232,8 @@ public static class DatabaseSeeder
         }
         catch (DbUpdateException)
         {
-            context.Entry(admin).State = EntityState.Detached;
-            if (await context.Users.AsNoTracking().AnyAsync(u => u.Role == UserRole.Admin, cancellationToken))
+            context.Entry(superAdmin).State = EntityState.Detached;
+            if (await context.Users.AsNoTracking().AnyAsync(u => u.Role == UserRole.SuperAdmin, cancellationToken))
             {
                 // Another instance created the admin at the same time.
                 return false;

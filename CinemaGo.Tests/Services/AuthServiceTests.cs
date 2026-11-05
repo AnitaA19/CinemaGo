@@ -221,6 +221,41 @@ public sealed class AuthServiceTests
     }
 
     [Fact]
+    public async Task CreateAdmin_PersistsRegularAdminWithHashedPassword()
+    {
+        using var context = CreateContext();
+
+        var result = await CreateService(context).CreateAdminAsync(Register("staff", "staff@example.com"), CancellationToken.None);
+
+        Assert.Equal("Admin", result.Role);
+        var admin = await context.Users.SingleAsync();
+        Assert.Equal(UserRole.Admin, admin.Role);
+        Assert.NotEqual(Password, admin.PasswordHash);
+        Assert.Equal(PasswordVerificationResult.Success, _hasher.VerifyHashedPassword(admin, admin.PasswordHash, Password));
+    }
+
+    [Fact]
+    public async Task Login_SuperAdmin_TokenContainsSuperAdminAndAdminRoles()
+    {
+        using var context = CreateContext();
+        var superAdmin = new User { Username = "root", Email = "root@example.com", Role = UserRole.SuperAdmin };
+        superAdmin.PasswordHash = _hasher.HashPassword(superAdmin, Password);
+        context.Users.Add(superAdmin);
+        await context.SaveChangesAsync();
+
+        var result = await CreateService(context).LoginAsync(
+            new LoginDTO { UsernameOrEmail = "root", Password = Password }, CancellationToken.None);
+        var roleClaims = ReadToken(result.Token).Claims
+            .Where(claim => claim.Type == ClaimTypes.Role || claim.Type == "role")
+            .Select(claim => claim.Value)
+            .ToArray();
+
+        Assert.Equal("SuperAdmin", result.Role);
+        Assert.Contains("SuperAdmin", roleClaims);
+        Assert.Contains("Admin", roleClaims);
+    }
+
+    [Fact]
     public async Task Register_ShortSigningKey_ThrowsInvalidOperation()
     {
         using var context = CreateContext();
