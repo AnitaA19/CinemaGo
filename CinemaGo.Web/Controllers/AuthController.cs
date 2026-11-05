@@ -32,4 +32,21 @@ public class AuthController : ControllerBase
     {
         return Ok(await _authService.LoginAsync(dto, cancellationToken));
     }
+
+    [HttpPost("refresh")]
+    public async Task<IActionResult> Refresh(
+        [FromBody] RefreshTokenRequestDTO dto,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await _authService.RefreshAsync(dto.RefreshToken, cancellationToken));
+    }
+
+    [HttpPost("logout")]
+    public async Task<IActionResult> Logout(
+        [FromBody] RefreshTokenRequestDTO dto,
+        CancellationToken cancellationToken)
+    {
+        await _authService.RevokeRefreshTokenAsync(dto.RefreshToken, cancellationToken);
+        return NoContent();
+    }
 }

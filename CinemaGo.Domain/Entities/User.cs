@@ -15,4 +15,6 @@ public class User
     public UserRole Role { get; set; } = UserRole.Customer;
 
     public ICollection<Booking> Bookings { get; set; } = new List<Booking>();
+
+    public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
 }

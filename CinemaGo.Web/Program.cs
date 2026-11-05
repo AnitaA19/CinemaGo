@@ -87,6 +87,7 @@ namespace Cinema
             builder.Services.AddScoped<ISessionRepository, SessionRepository>();
             builder.Services.AddScoped<ITicketRepository, TicketRepository>();
             builder.Services.AddScoped<IUserRepository, UserRepository>();
+            builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
             builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
             builder.Services.AddScoped<ISessionCancellationEmailSender, SmtpSessionCancellationEmailSender>();
 

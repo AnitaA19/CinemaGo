@@ -18,6 +18,7 @@ public class CinemaDbContext : DbContext
     public DbSet<Ticket> Tickets { get; set; }
     public DbSet<User> Users { get; set; }
     public DbSet<Booking> Bookings { get; set; }
+    public DbSet<RefreshToken> RefreshTokens { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -136,6 +137,20 @@ public class CinemaDbContext : DbContext
                 .WithOne(b => b.User)
                 .HasForeignKey(b => b.UserId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<RefreshToken>(entity =>
+        {
+            entity.HasKey(token => token.Id);
+            entity.Property(token => token.TokenHash).IsRequired().HasMaxLength(64);
+            entity.Property(token => token.CreatedAtUtc).IsRequired();
+            entity.Property(token => token.ExpiresAtUtc).IsRequired();
+            entity.Property(token => token.RevokedAtUtc).IsConcurrencyToken();
+            entity.HasIndex(token => token.TokenHash).IsUnique();
+            entity.HasOne(token => token.User)
+                .WithMany(user => user.RefreshTokens)
+                .HasForeignKey(token => token.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<Booking>(entity =>

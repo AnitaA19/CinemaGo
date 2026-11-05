@@ -46,6 +46,7 @@ public sealed class AuthServiceTests
 
     private AuthService CreateService(CinemaDbContext context, IConfiguration? configuration = null) => new(
         new UserRepository(context),
+        new RefreshTokenRepository(context),
         new UnitOfWork(context),
         _hasher,
         configuration ?? CreateConfiguration());
@@ -65,9 +66,14 @@ public sealed class AuthServiceTests
         Assert.Equal("alice", result.Username);
         Assert.Equal(nameof(UserRole.Customer), result.Role);
         Assert.False(string.IsNullOrWhiteSpace(result.Token));
+        Assert.False(string.IsNullOrWhiteSpace(result.RefreshToken));
+        Assert.True(result.RefreshTokenExpiresAtUtc > DateTime.UtcNow.AddDays(6));
 
         using var verify = CreateContext();
         var user = await verify.Users.SingleAsync();
+        var storedRefreshToken = await verify.RefreshTokens.SingleAsync();
+        Assert.NotEqual(result.RefreshToken, storedRefreshToken.TokenHash);
+        Assert.Equal(64, storedRefreshToken.TokenHash.Length);
         Assert.NotEqual(Password, user.PasswordHash);
         Assert.Equal(UserRole.Customer, user.Role);
         Assert.Equal(PasswordVerificationResult.Success, _hasher.VerifyHashedPassword(user, user.PasswordHash, Password));
@@ -230,6 +236,38 @@ public sealed class AuthServiceTests
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => CreateService(context, CreateConfiguration(null)).RegisterAsync(Register(), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Refresh_RotatesTokenAndRejectsReuse()
+    {
+        using var context = CreateContext();
+        var service = CreateService(context);
+        var registered = await service.RegisterAsync(Register(), CancellationToken.None);
+
+        var refreshed = await service.RefreshAsync(registered.RefreshToken, CancellationToken.None);
+
+        Assert.NotEqual(registered.RefreshToken, refreshed.RefreshToken);
+        Assert.False(string.IsNullOrWhiteSpace(refreshed.Token));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            () => service.RefreshAsync(registered.RefreshToken, CancellationToken.None));
+        var storedTokens = await context.RefreshTokens.ToListAsync();
+        Assert.Equal(2, storedTokens.Count);
+        Assert.Equal(1, storedTokens.Count(token => token.RevokedAtUtc.HasValue));
+        Assert.Equal(1, storedTokens.Count(token => !token.RevokedAtUtc.HasValue));
+    }
+
+    [Fact]
+    public async Task Logout_RevokesRefreshToken()
+    {
+        using var context = CreateContext();
+        var service = CreateService(context);
+        var registered = await service.RegisterAsync(Register(), CancellationToken.None);
+
+        await service.RevokeRefreshTokenAsync(registered.RefreshToken, CancellationToken.None);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            () => service.RefreshAsync(registered.RefreshToken, CancellationToken.None));
     }
 
     [Fact]

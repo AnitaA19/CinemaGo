@@ -1,5 +1,6 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 using CinemaGo.Domain.DTOs.AuthDTOs;
 using CinemaGo.Domain.Entities;
@@ -15,17 +16,20 @@ namespace CinemaGo.Application.Services.Implementations;
 public class AuthService : Services.Interfaces.IAuthService
 {
     private readonly IUserRepository _userRepository;
+    private readonly IRefreshTokenRepository _refreshTokenRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IPasswordHasher<User> _passwordHasher;
     private readonly IConfiguration _configuration;
 
     public AuthService(
         IUserRepository userRepository,
+        IRefreshTokenRepository refreshTokenRepository,
         IUnitOfWork unitOfWork,
         IPasswordHasher<User> passwordHasher,
         IConfiguration configuration)
     {
         _userRepository = userRepository;
+        _refreshTokenRepository = refreshTokenRepository;
         _unitOfWork = unitOfWork;
         _passwordHasher = passwordHasher;
         _configuration = configuration;
@@ -74,7 +78,7 @@ public class AuthService : Services.Interfaces.IAuthService
         await _userRepository.AddUserAsync(user, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return GenerateAuthResponse(user);
+        return await GenerateAuthResponseAsync(user, cancellationToken);
     }
 
     public async Task<AuthResponseDTO> LoginAsync(
@@ -115,10 +119,57 @@ public class AuthService : Services.Interfaces.IAuthService
             await _unitOfWork.SaveChangesAsync(cancellationToken);
         }
 
-        return GenerateAuthResponse(user);
+        return await GenerateAuthResponseAsync(user, cancellationToken);
     }
 
-    private AuthResponseDTO GenerateAuthResponse(User user)
+    public async Task<AuthResponseDTO> RefreshAsync(
+        string refreshToken,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(refreshToken))
+        {
+            throw new UnauthorizedAccessException("Invalid refresh token.");
+        }
+
+        var storedToken = await _refreshTokenRepository.GetByTokenHashAsync(
+            HashRefreshToken(refreshToken), cancellationToken);
+        var now = DateTime.UtcNow;
+
+        if (storedToken is null || storedToken.RevokedAtUtc.HasValue || storedToken.ExpiresAtUtc <= now)
+        {
+            throw new UnauthorizedAccessException("Invalid refresh token.");
+        }
+
+        storedToken.RevokedAtUtc = now;
+        return await GenerateAuthResponseAsync(
+            storedToken.User, cancellationToken, storedToken);
+    }
+
+    public async Task RevokeRefreshTokenAsync(
+        string refreshToken,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(refreshToken))
+        {
+            return;
+        }
+
+        var storedToken = await _refreshTokenRepository.GetByTokenHashAsync(
+            HashRefreshToken(refreshToken), cancellationToken);
+
+        if (storedToken is null || storedToken.RevokedAtUtc.HasValue)
+        {
+            return;
+        }
+
+        storedToken.RevokedAtUtc = DateTime.UtcNow;
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task<AuthResponseDTO> GenerateAuthResponseAsync(
+        User user,
+        CancellationToken cancellationToken,
+        RefreshToken? tokenToRotate = null)
     {
         var jwtSection = _configuration.GetSection("Jwt");
 
@@ -145,7 +196,24 @@ public class AuthService : Services.Interfaces.IAuthService
                 "JWT signing key must be at least 32 bytes long.");
         }
 
-        var expiresAtUtc = DateTime.UtcNow.AddMinutes(expiresInMinutes);
+        var now = DateTime.UtcNow;
+        var expiresAtUtc = now.AddMinutes(expiresInMinutes);
+        var refreshTokenLifetimeDays = int.TryParse(
+            _configuration["RefreshToken:ExpiresInDays"], out var days)
+            ? days
+            : 7;
+
+        if (refreshTokenLifetimeDays <= 0)
+        {
+            throw new InvalidOperationException(
+                "Refresh token lifetime must be greater than zero days.");
+        }
+
+        var refreshTokenExpiresAtUtc = now.AddDays(refreshTokenLifetimeDays);
+        var refreshToken = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64))
+            .TrimEnd('=')
+            .Replace('+', '-')
+            .Replace('/', '_');
 
         var claims = new List<Claim>
         {
@@ -168,6 +236,25 @@ public class AuthService : Services.Interfaces.IAuthService
             expires: expiresAtUtc,
             signingCredentials: credentials);
 
+        var refreshTokenEntity = new RefreshToken
+        {
+            UserId = user.Id,
+            TokenHash = HashRefreshToken(refreshToken),
+            CreatedAtUtc = now,
+            ExpiresAtUtc = refreshTokenExpiresAtUtc
+        };
+
+        if (tokenToRotate is null)
+        {
+            await _refreshTokenRepository.AddAsync(refreshTokenEntity, cancellationToken);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+        else if (!await _refreshTokenRepository.TryRotateAsync(
+            tokenToRotate, refreshTokenEntity, cancellationToken))
+        {
+            throw new UnauthorizedAccessException("Invalid refresh token.");
+        }
+
         return new AuthResponseDTO
         {
             UserId = user.Id,
@@ -175,7 +262,12 @@ public class AuthService : Services.Interfaces.IAuthService
             Email = user.Email,
             Role = user.Role.ToString(),
             Token = new JwtSecurityTokenHandler().WriteToken(token),
-            ExpiresAtUtc = expiresAtUtc
+            ExpiresAtUtc = expiresAtUtc,
+            RefreshToken = refreshToken,
+            RefreshTokenExpiresAtUtc = refreshTokenExpiresAtUtc
         };
     }
+
+    private static string HashRefreshToken(string refreshToken) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(refreshToken)));
 }

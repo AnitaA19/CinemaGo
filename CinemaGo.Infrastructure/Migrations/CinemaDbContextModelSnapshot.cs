@@ -154,6 +154,42 @@ namespace CinemaGo.Infrastructure.Migrations
                     b.ToTable("MovieGenres");
                 });
 
+            modelBuilder.Entity("CinemaGo.Domain.Entities.RefreshToken", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("RevokedAtUtc")
+                        .IsConcurrencyToken()
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("RefreshTokens");
+                });
+
             modelBuilder.Entity("CinemaGo.Domain.Entities.Seat", b =>
                 {
                     b.Property<int>("Id")
@@ -346,6 +382,17 @@ namespace CinemaGo.Infrastructure.Migrations
                     b.Navigation("Movie");
                 });
 
+            modelBuilder.Entity("CinemaGo.Domain.Entities.RefreshToken", b =>
+                {
+                    b.HasOne("CinemaGo.Domain.Entities.User", "User")
+                        .WithMany("RefreshTokens")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("CinemaGo.Domain.Entities.Seat", b =>
                 {
                     b.HasOne("CinemaGo.Domain.Entities.Hall", "Hall")
@@ -424,6 +471,8 @@ namespace CinemaGo.Infrastructure.Migrations
             modelBuilder.Entity("CinemaGo.Domain.Entities.User", b =>
                 {
                     b.Navigation("Bookings");
+
+                    b.Navigation("RefreshTokens");
                 });
 #pragma warning restore 612, 618
         }

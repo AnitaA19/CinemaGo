@@ -27,6 +27,7 @@ Layered solution: `Domain` (entities, DTOs, exceptions) → `Application` (servi
 | Method | Route | Access |
 |---|---|---|
 | POST | `/api/auth/register`, `/api/auth/login` | anonymous |
+| POST | `/api/auth/refresh`, `/api/auth/logout` | anonymous (refresh token required) |
 | GET | `/api/movies`, `/api/movies/{id}`, `/api/sessions`, `/api/sessions/{id}` | anonymous |
 | GET | `/api/movies/sales` | **Admin** (active ticket count and revenue grouped by movie) |
 | GET | `/api/genres`, `/api/genres/{id}`, `/api/halls`, `/api/halls/{id}`, `/api/seats` (`?hallId=`), `/api/seats/{id}` | anonymous |
@@ -268,5 +269,6 @@ erDiagram
 - Request DTOs are validated with FluentValidation (`RequestValidators.cs`); invalid models return 400 automatically.
 - Session cancellation emails are sent as HTML (styled like the frontend's dark/gold theme, templates in `EmailTemplates.cs`) with a plain-text alternative.
 - Session start times are UTC: values must carry a `Z`/offset and be in the future.
+- Register and login responses include an access JWT and refresh token. Send the refresh token in a JSON body (`{"refreshToken":"..."}`) to `/api/auth/refresh` to rotate it and receive a new token pair; the previous refresh token is no longer valid. Send the token to `/api/auth/logout` to revoke it. Refresh tokens expire after seven days by default (`RefreshToken:ExpiresInDays`), and only token hashes are stored.
 
 
