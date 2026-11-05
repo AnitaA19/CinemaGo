@@ -31,6 +31,43 @@ public sealed class RegisterDtoValidator : AbstractValidator<RegisterDTO>
     }
 }
 
+public sealed class InviteAdminDtoValidator : AbstractValidator<InviteAdminDTO>
+{
+    public InviteAdminDtoValidator()
+    {
+        RuleFor(dto => dto.Email)
+            .NotEmpty()
+            .EmailAddress()
+            .MaximumLength(256);
+    }
+}
+
+public sealed class AcceptAdminInvitationDtoValidator : AbstractValidator<AcceptAdminInvitationDTO>
+{
+    public AcceptAdminInvitationDtoValidator()
+    {
+        RuleFor(dto => dto.Email)
+            .NotEmpty()
+            .EmailAddress()
+            .MaximumLength(256);
+
+        RuleFor(dto => dto.Username)
+            .NotEmpty()
+            .Length(3, 100)
+            .Matches(@"^[A-Za-z0-9_.-]+$")
+            .WithMessage("Username may contain only letters, digits, '_', '.' and '-'.");
+
+        RuleFor(dto => dto.Password)
+            .NotEmpty()
+            .MinimumLength(8)
+            .MaximumLength(128);
+
+        RuleFor(dto => dto.Code)
+            .NotEmpty()
+            .MaximumLength(32);
+    }
+}
+
 public sealed class LoginDtoValidator : AbstractValidator<LoginDTO>
 {
     public LoginDtoValidator()

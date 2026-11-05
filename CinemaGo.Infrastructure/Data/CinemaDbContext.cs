@@ -19,6 +19,7 @@ public class CinemaDbContext : DbContext
     public DbSet<User> Users { get; set; }
     public DbSet<Booking> Bookings { get; set; }
     public DbSet<RefreshToken> RefreshTokens { get; set; }
+    public DbSet<AdminInvitation> AdminInvitations { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -154,6 +155,24 @@ public class CinemaDbContext : DbContext
                 .WithMany(user => user.RefreshTokens)
                 .HasForeignKey(token => token.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<AdminInvitation>(entity =>
+        {
+            entity.HasKey(invitation => invitation.Id);
+            entity.Property(invitation => invitation.Email).IsRequired().HasMaxLength(256);
+            entity.Property(invitation => invitation.CodeHash).IsRequired().HasMaxLength(64);
+            entity.Property(invitation => invitation.CreatedAtUtc).IsRequired();
+            entity.Property(invitation => invitation.ExpiresAtUtc).IsRequired();
+            entity.Property(invitation => invitation.AcceptedAtUtc).IsConcurrencyToken();
+            entity.Property(invitation => invitation.RevokedAtUtc).IsConcurrencyToken();
+            entity.HasIndex(invitation => invitation.Email)
+                .IsUnique()
+                .HasFilter("[AcceptedAtUtc] IS NULL AND [RevokedAtUtc] IS NULL");
+            entity.HasOne(invitation => invitation.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(invitation => invitation.CreatedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<Booking>(entity =>

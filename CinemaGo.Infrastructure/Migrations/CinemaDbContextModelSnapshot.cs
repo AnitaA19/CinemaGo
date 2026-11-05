@@ -22,6 +22,55 @@ namespace CinemaGo.Infrastructure.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("CinemaGo.Domain.Entities.AdminInvitation", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("AcceptedAtUtc")
+                        .IsConcurrencyToken()
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CodeHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("CreatedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("FailedAttempts")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("RevokedAtUtc")
+                        .IsConcurrencyToken()
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("Email")
+                        .IsUnique()
+                        .HasFilter("[AcceptedAtUtc] IS NULL AND [RevokedAtUtc] IS NULL");
+
+                    b.ToTable("AdminInvitations");
+                });
+
             modelBuilder.Entity("CinemaGo.Domain.Entities.Booking", b =>
                 {
                     b.Property<int>("Id")
@@ -338,6 +387,17 @@ namespace CinemaGo.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("Users");
+                });
+
+            modelBuilder.Entity("CinemaGo.Domain.Entities.AdminInvitation", b =>
+                {
+                    b.HasOne("CinemaGo.Domain.Entities.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("CreatedByUser");
                 });
 
             modelBuilder.Entity("CinemaGo.Domain.Entities.Booking", b =>

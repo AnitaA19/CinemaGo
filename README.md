@@ -28,7 +28,8 @@ Layered solution: `Domain` (entities, DTOs, exceptions) → `Application` (servi
 |---|---|---|
 | POST | `/api/auth/register`, `/api/auth/login` | anonymous |
 | POST | `/api/auth/refresh`, `/api/auth/logout` | anonymous (refresh token required) |
-| POST | `/api/auth/admins` | **SuperAdmin** |
+| POST | `/api/auth/admin-invitations` | **SuperAdmin** (sends invitation email) |
+| POST | `/api/auth/admin-invitations/accept` | anonymous (email, username, password and one-time code) |
 | GET | `/api/movies`, `/api/movies/{id}`, `/api/sessions`, `/api/sessions/{id}` | anonymous |
 | GET | `/api/movies/sales` | **Admin** (active ticket count and revenue grouped by movie) |
 | GET | `/api/genres`, `/api/genres/{id}`, `/api/halls`, `/api/halls/{id}`, `/api/seats` (`?hallId=`), `/api/seats/{id}` | anonymous |
@@ -180,7 +181,12 @@ dotnet user-secrets set "InitialSuperAdmin:Password" "a-long-random-password" --
 
 The password needs at least 12 characters and is stored hashed. The old `InitialAdmin:*` setting names are still accepted for existing deployments, but now bootstrap a SuperAdmin. Once a SuperAdmin exists, bootstrap settings are ignored; an existing account is never promoted automatically. The database enforces at most one SuperAdmin.
 
-A SuperAdmin can create regular Admin accounts with `POST /api/auth/admins`, using the same username, email, and password JSON shape as registration. This endpoint requires a SuperAdmin JWT. Created accounts cannot create other admins or super-admins. SuperAdmin tokens also include the Admin role for access to existing admin features.
+(`AdminInvitation:AcceptUrl?email=...`, required; set it to your frontend's public invitation page, e.g. `AdminInvitation__AcceptUrl=https://app.example.com/accept-admin-invite`)
+
+valid for `AdminInvitation:ExpiresInMinutes` (default 10)
+- After 5 wrong codes the invitation is locked; the SuperAdmin can re-invite the same email, which revokes the previous invitation and sends a new code.
+- Inviting an already registered email returns 409. If the email cannot be sent (SMTP not configured or failing, `Email:Smtp:*`), the invitation is revoked and the API returns 503.
+- Admins cannot invite other admins. SuperAdmin tokens also include the Admin role for access to existing admin features.
 
 ## Concurrency
 

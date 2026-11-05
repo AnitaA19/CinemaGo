@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using CinemaGo.Application.Services.Interfaces;
 using CinemaGo.Domain.DTOs.AuthDTOs;
 using Microsoft.AspNetCore.Authorization;
@@ -54,12 +55,22 @@ public class AuthController : ControllerBase
     }
 
     [Authorize(Roles = "SuperAdmin")]
-    [HttpPost("admins")]
-    public async Task<IActionResult> CreateAdmin(
-        [FromBody] RegisterDTO dto,
+    [HttpPost("admin-invitations")]
+    public async Task<IActionResult> InviteAdmin(
+        [FromBody] InviteAdminDTO dto,
         CancellationToken cancellationToken)
     {
-        var admin = await _authService.CreateAdminAsync(dto, cancellationToken);
-        return StatusCode(StatusCodes.Status201Created, admin);
+        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var invitation = await _authService.InviteAdminAsync(dto, userId, cancellationToken);
+        return StatusCode(StatusCodes.Status201Created, invitation);
+    }
+
+    [AllowAnonymous]
+    [HttpPost("admin-invitations/accept")]
+    public async Task<IActionResult> AcceptAdminInvitation(
+        [FromBody] AcceptAdminInvitationDTO dto,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await _authService.AcceptAdminInvitationAsync(dto, cancellationToken));
     }
 }

@@ -5,6 +5,7 @@ using CinemaGo.Domain.DTOs.AuthDTOs;
 using CinemaGo.Domain.Entities;
 using CinemaGo.Domain.Enums;
 using CinemaGo.Domain.Exceptions;
+using CinemaGo.Domain.Intefraces;
 using CinemaGo.Infrastructure.Data;
 using CinemaGo.Infrastructure.Repositories;
 using CinemaGo.Infrastructure.UnitOfWork;
@@ -22,6 +23,7 @@ public sealed class AuthServiceTests
 
     private readonly SqliteConnection _connection = new("DataSource=:memory:");
     private readonly PasswordHasher<User> _hasher = new();
+    private readonly CapturingEmailSender _emailSender = new();
 
     public AuthServiceTests()
     {
@@ -41,15 +43,50 @@ public sealed class AuthServiceTests
             ["Jwt:Key"] = key,
             ["Jwt:Issuer"] = "CinemaGo",
             ["Jwt:Audience"] = "CinemaGoUsers",
-            ["Jwt:ExpiresInMinutes"] = "30"
+            ["Jwt:ExpiresInMinutes"] = "30",
+            ["AdminInvitation:AcceptUrl"] = "https://cinema.example.com/accept-admin-invite"
         }).Build();
 
-    private AuthService CreateService(CinemaDbContext context, IConfiguration? configuration = null) => new(
+    private AuthService CreateService(
+        CinemaDbContext context,
+        IConfiguration? configuration = null,
+        IAdminInvitationEmailSender? emailSender = null) => new(
         new UserRepository(context),
         new RefreshTokenRepository(context),
+        new AdminInvitationRepository(context),
+        emailSender ?? _emailSender,
         new UnitOfWork(context),
         _hasher,
         configuration ?? CreateConfiguration());
+
+    private sealed class CapturingEmailSender : IAdminInvitationEmailSender
+    {
+        public List<(string Recipient, string Code, string Link)> Sent { get; } = [];
+
+        public Task SendAsync(string recipient, string code, string acceptLink, DateTime expiresAtUtc, CancellationToken cancellationToken)
+        {
+            Sent.Add((recipient, code, acceptLink));
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FailingEmailSender : IAdminInvitationEmailSender
+    {
+        public Task SendAsync(string recipient, string code, string acceptLink, DateTime expiresAtUtc, CancellationToken cancellationToken) =>
+            throw new NotificationDeliveryException("SMTP down.");
+    }
+
+    private async Task<User> AddSuperAdminAsync(CinemaDbContext context)
+    {
+        var superAdmin = new User { Username = "boss", Email = "boss@example.com", Role = UserRole.SuperAdmin };
+        superAdmin.PasswordHash = _hasher.HashPassword(superAdmin, Password);
+        context.Users.Add(superAdmin);
+        await context.SaveChangesAsync();
+        return superAdmin;
+    }
+
+    private static AcceptAdminInvitationDTO Accept(string code, string email = "new.admin@example.com", string username = "newadmin") =>
+        new() { Email = email, Username = username, Password = Password, Code = code };
 
     private static RegisterDTO Register(string username = "alice", string email = "alice@example.com") =>
         new() { Username = username, Email = email, Password = Password };
@@ -221,17 +258,167 @@ public sealed class AuthServiceTests
     }
 
     [Fact]
-    public async Task CreateAdmin_PersistsRegularAdminWithHashedPassword()
+    public async Task InviteAdmin_SendsCodeAndDoesNotCreateUser()
     {
         using var context = CreateContext();
+        var boss = await AddSuperAdminAsync(context);
 
-        var result = await CreateService(context).CreateAdminAsync(Register("staff", "staff@example.com"), CancellationToken.None);
+        var result = await CreateService(context).InviteAdminAsync(
+            new InviteAdminDTO { Email = " New.Admin@Example.com " }, boss.Id, CancellationToken.None);
+
+        Assert.Equal("new.admin@example.com", result.Email);
+        var sent = Assert.Single(_emailSender.Sent);
+        Assert.Equal("new.admin@example.com", sent.Recipient);
+        Assert.Matches(@"^\d{8}$", sent.Code);
+        Assert.Contains("email=new.admin%40example.com", sent.Link);
+        Assert.Equal(1, await context.Users.CountAsync());
+        var invitation = await context.AdminInvitations.SingleAsync();
+        Assert.NotEqual(sent.Code, invitation.CodeHash);
+    }
+
+    [Fact]
+    public async Task AcceptInvitation_ValidCode_CreatesAdminAndReturnsTokens()
+    {
+        using var context = CreateContext();
+        var boss = await AddSuperAdminAsync(context);
+        var service = CreateService(context);
+        await service.InviteAdminAsync(new InviteAdminDTO { Email = "new.admin@example.com" }, boss.Id, CancellationToken.None);
+
+        var result = await service.AcceptAdminInvitationAsync(Accept(_emailSender.Sent[0].Code), CancellationToken.None);
 
         Assert.Equal("Admin", result.Role);
-        var admin = await context.Users.SingleAsync();
+        Assert.False(string.IsNullOrEmpty(result.RefreshToken));
+        var admin = await context.Users.SingleAsync(user => user.Email == "new.admin@example.com");
         Assert.Equal(UserRole.Admin, admin.Role);
-        Assert.NotEqual(Password, admin.PasswordHash);
         Assert.Equal(PasswordVerificationResult.Success, _hasher.VerifyHashedPassword(admin, admin.PasswordHash, Password));
+        Assert.NotNull((await context.AdminInvitations.SingleAsync()).AcceptedAtUtc);
+    }
+
+    [Fact]
+    public async Task AcceptInvitation_CodeCannotBeReused()
+    {
+        using var context = CreateContext();
+        var boss = await AddSuperAdminAsync(context);
+        var service = CreateService(context);
+        await service.InviteAdminAsync(new InviteAdminDTO { Email = "new.admin@example.com" }, boss.Id, CancellationToken.None);
+        var code = _emailSender.Sent[0].Code;
+        await service.AcceptAdminInvitationAsync(Accept(code), CancellationToken.None);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            () => service.AcceptAdminInvitationAsync(Accept(code, username: "other"), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task AcceptInvitation_WrongCode_IsRejectedAndNoUserCreated()
+    {
+        using var context = CreateContext();
+        var boss = await AddSuperAdminAsync(context);
+        var service = CreateService(context);
+        await service.InviteAdminAsync(new InviteAdminDTO { Email = "new.admin@example.com" }, boss.Id, CancellationToken.None);
+        var wrong = _emailSender.Sent[0].Code == "00000000" ? "11111111" : "00000000";
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            () => service.AcceptAdminInvitationAsync(Accept(wrong), CancellationToken.None));
+
+        Assert.Equal(1, await context.Users.CountAsync());
+        Assert.Equal(1, (await context.AdminInvitations.SingleAsync()).FailedAttempts);
+    }
+
+    [Fact]
+    public async Task AcceptInvitation_TooManyWrongCodes_LocksInvitation()
+    {
+        using var context = CreateContext();
+        var boss = await AddSuperAdminAsync(context);
+        var service = CreateService(context);
+        await service.InviteAdminAsync(new InviteAdminDTO { Email = "new.admin@example.com" }, boss.Id, CancellationToken.None);
+        var realCode = _emailSender.Sent[0].Code;
+        var wrong = realCode == "00000000" ? "11111111" : "00000000";
+
+        for (var i = 0; i < 5; i++)
+        {
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(
+                () => service.AcceptAdminInvitationAsync(Accept(wrong), CancellationToken.None));
+        }
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            () => service.AcceptAdminInvitationAsync(Accept(realCode), CancellationToken.None));
+        Assert.Equal(1, await context.Users.CountAsync());
+    }
+
+    [Fact]
+    public async Task AcceptInvitation_Expired_IsRejected()
+    {
+        using var context = CreateContext();
+        var boss = await AddSuperAdminAsync(context);
+        var service = CreateService(context);
+        await service.InviteAdminAsync(new InviteAdminDTO { Email = "new.admin@example.com" }, boss.Id, CancellationToken.None);
+        var invitation = await context.AdminInvitations.SingleAsync();
+        invitation.ExpiresAtUtc = DateTime.UtcNow.AddMinutes(-1);
+        await context.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            () => service.AcceptAdminInvitationAsync(Accept(_emailSender.Sent[0].Code), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task AcceptInvitation_CodeBoundToEmail_IsRejectedForAnotherEmail()
+    {
+        using var context = CreateContext();
+        var boss = await AddSuperAdminAsync(context);
+        var service = CreateService(context);
+        await service.InviteAdminAsync(new InviteAdminDTO { Email = "new.admin@example.com" }, boss.Id, CancellationToken.None);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            () => service.AcceptAdminInvitationAsync(
+                Accept(_emailSender.Sent[0].Code, email: "someone.else@example.com"), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task InviteAdmin_AlreadyRegisteredEmail_ThrowsConflict()
+    {
+        using var context = CreateContext();
+        var boss = await AddSuperAdminAsync(context);
+
+        await Assert.ThrowsAsync<ConflictException>(
+            () => CreateService(context).InviteAdminAsync(
+                new InviteAdminDTO { Email = "BOSS@example.com" }, boss.Id, CancellationToken.None));
+        Assert.Empty(_emailSender.Sent);
+    }
+
+    [Fact]
+    public async Task InviteAdmin_Again_InvalidatesPreviousCode()
+    {
+        using var context = CreateContext();
+        var boss = await AddSuperAdminAsync(context);
+        var service = CreateService(context);
+        var dto = new InviteAdminDTO { Email = "new.admin@example.com" };
+        await service.InviteAdminAsync(dto, boss.Id, CancellationToken.None);
+        await service.InviteAdminAsync(dto, boss.Id, CancellationToken.None);
+        var (first, second) = (_emailSender.Sent[0].Code, _emailSender.Sent[1].Code);
+
+        if (first != second)
+        {
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(
+                () => service.AcceptAdminInvitationAsync(Accept(first), CancellationToken.None));
+        }
+
+        var result = await service.AcceptAdminInvitationAsync(Accept(second), CancellationToken.None);
+        Assert.Equal("Admin", result.Role);
+    }
+
+    [Fact]
+    public async Task InviteAdmin_EmailDeliveryFails_RevokesInvitation()
+    {
+        using var context = CreateContext();
+        var boss = await AddSuperAdminAsync(context);
+
+        await Assert.ThrowsAsync<NotificationDeliveryException>(
+            () => CreateService(context, emailSender: new FailingEmailSender()).InviteAdminAsync(
+                new InviteAdminDTO { Email = "new.admin@example.com" }, boss.Id, CancellationToken.None));
+
+        Assert.NotNull((await context.AdminInvitations.SingleAsync()).RevokedAtUtc);
+        await CreateService(context).InviteAdminAsync(
+            new InviteAdminDTO { Email = "new.admin@example.com" }, boss.Id, CancellationToken.None);
     }
 
     [Fact]
