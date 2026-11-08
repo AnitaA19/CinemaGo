@@ -240,15 +240,13 @@ namespace Cinema
             app.UseExceptionHandler();
             app.UseMiddleware<ApiResponseMiddleware>();
 
-            if (app.Environment.IsDevelopment())
-            {
                 app.MapOpenApi();
                 app.UseSwagger();
                 app.UseSwaggerUI(options =>
                     options.SwaggerEndpoint(
                         "/swagger/v1/swagger.json",
                         "CinemaGo API v1"));
-            }
+           
 
             app.UseCors("LocalClients");
 

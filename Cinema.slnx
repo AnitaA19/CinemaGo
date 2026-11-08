@@ -1,4 +1,4 @@
-﻿<Solution>
+<Solution>
   <Folder Name="/CinemaGo/">
     <Project Path="CinemaGo.Web/CinemaGo.Web.csproj" />
     <Project Path="CinemaGo.Application/CinemaGo.Application.csproj" />

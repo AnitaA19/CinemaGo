@@ -22,6 +22,19 @@ Layered solution: `Domain` (entities, DTOs, exceptions) → `Application` (servi
 3. `dotnet run --project CinemaGo.Web` and open `/swagger`.
 4. Tests: `dotnet test`
 
+## Publish the container image
+
+The GitHub Actions workflow builds `CinemaGo.Web/Dockerfile` with the repository root as its build context and pushes `<login-server>/cinemago:<commit-sha>` to Azure Container Registry (ACR). It runs on pushes to `main` and can also be started manually from the Actions tab using `main`. It publishes an image only; it does not deploy the application.
+
+Before running it:
+
+1. Create an ACR registry and a Microsoft Entra application with a service principal. In the application's **Federated credentials**, add a GitHub Actions credential for this repository and the `main` branch, with audience `api://AzureADTokenExchange`. Protect the `main` branch because code merged there can publish images. See [Azure's OIDC setup guide](https://learn.microsoft.com/en-us/azure/developer/github/connect-from-azure-openid-connect).
+2. Assign roles to the service principal at the registry scope. For **RBAC Registry Permissions**, assign `AcrPush`. For **RBAC Registry + ABAC Repository Permissions**, assign `Container Registry Repository Writer` (optionally scoped to the `cinemago` repository using an ABAC condition) and `Container Registry Configuration Reader and Data Access Configuration Reader` for `az acr login`. See [ACR built-in roles](https://learn.microsoft.com/en-us/azure/container-registry/container-registry-rbac-built-in-roles-overview).
+3. In GitHub, under **Settings > Secrets and variables > Actions**, add repository secrets `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, and `AZURE_SUBSCRIPTION_ID` for the application and subscription containing the registry. Add repository variables `ACR_NAME` (the registry resource name, without the domain) and `ACR_LOGIN_SERVER` (the exact login server shown in the registry's Azure portal overview, for example `myregistry.azurecr.io`).
+4. Commit the Dockerfile and workflow, push to `main`, and check the workflow run in **Actions**. The GitHub-hosted runner must be able to reach the registry; a private or firewall-restricted registry requires an appropriately networked runner or access configuration.
+
+The workflow uses short-lived OIDC credentials instead of a registry password. Application configuration and secrets must be supplied separately when running the image.
+
 ## API
 
 | Method | Route | Access |
