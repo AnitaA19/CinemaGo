@@ -21,7 +21,7 @@ public sealed class DatabaseSeederTests
 
         Assert.True(await _db.Context.Genres.CountAsync() >= 5);
         Assert.True(await _db.Context.Movies.CountAsync() >= 3);
-        Assert.True(await _db.Context.MovieGenres.AnyAsync());
+        Assert.True(await _db.Context.Movies.AnyAsync(m => m.Genres.Any()));
         Assert.Equal(3, await _db.Context.Halls.CountAsync());
         foreach (var hall in await _db.Context.Halls.Include(h => h.Seats).ToListAsync())
         {
@@ -58,7 +58,7 @@ public sealed class DatabaseSeederTests
     private async Task<(int, int, int, int, int)> Counts() => (
         await _db.Context.Genres.CountAsync(),
         await _db.Context.Movies.CountAsync(),
-        await _db.Context.MovieGenres.CountAsync(),
+        await _db.Context.Movies.SelectMany(m => m.Genres).CountAsync(),
         await _db.Context.Halls.CountAsync(),
         await _db.Context.Seats.CountAsync());
 

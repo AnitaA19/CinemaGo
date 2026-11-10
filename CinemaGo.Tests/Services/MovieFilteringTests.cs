@@ -34,7 +34,7 @@ public sealed class MovieFilteringTests
                 Title = i <= 5 ? $"Dune {i:00}" : $"Film {i:00}",
                 DurationMinutes = 100,
                 AgeRating = 12,
-                MovieGenres = { new MovieGenre { GenreId = i % 2 == 0 ? 1 : 2 } }
+                Genres = { _context.Genres.Local.Single(g => g.Id == (i % 2 == 0 ? 1 : 2)) }
             });
         }
         _context.SaveChanges();

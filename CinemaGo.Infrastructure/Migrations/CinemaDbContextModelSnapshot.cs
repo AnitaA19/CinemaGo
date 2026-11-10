@@ -188,21 +188,6 @@ namespace CinemaGo.Infrastructure.Migrations
                         });
                 });
 
-            modelBuilder.Entity("CinemaGo.Domain.Entities.MovieGenre", b =>
-                {
-                    b.Property<int>("MovieId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("GenreId")
-                        .HasColumnType("int");
-
-                    b.HasKey("MovieId", "GenreId");
-
-                    b.HasIndex("GenreId");
-
-                    b.ToTable("MovieGenres");
-                });
-
             modelBuilder.Entity("CinemaGo.Domain.Entities.RefreshToken", b =>
                 {
                     b.Property<int>("Id")
@@ -389,6 +374,21 @@ namespace CinemaGo.Infrastructure.Migrations
                     b.ToTable("Users");
                 });
 
+            modelBuilder.Entity("MovieGenre", b =>
+                {
+                    b.Property<int>("MovieId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("GenreId")
+                        .HasColumnType("int");
+
+                    b.HasKey("MovieId", "GenreId");
+
+                    b.HasIndex("GenreId");
+
+                    b.ToTable("MovieGenres", (string)null);
+                });
+
             modelBuilder.Entity("CinemaGo.Domain.Entities.AdminInvitation", b =>
                 {
                     b.HasOne("CinemaGo.Domain.Entities.User", "CreatedByUser")
@@ -425,25 +425,6 @@ namespace CinemaGo.Infrastructure.Migrations
                     b.Navigation("Session");
 
                     b.Navigation("User");
-                });
-
-            modelBuilder.Entity("CinemaGo.Domain.Entities.MovieGenre", b =>
-                {
-                    b.HasOne("CinemaGo.Domain.Entities.Genre", "Genre")
-                        .WithMany("MovieGenres")
-                        .HasForeignKey("GenreId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("CinemaGo.Domain.Entities.Movie", "Movie")
-                        .WithMany("MovieGenres")
-                        .HasForeignKey("MovieId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Genre");
-
-                    b.Navigation("Movie");
                 });
 
             modelBuilder.Entity("CinemaGo.Domain.Entities.RefreshToken", b =>
@@ -498,14 +479,24 @@ namespace CinemaGo.Infrastructure.Migrations
                     b.Navigation("Booking");
                 });
 
+            modelBuilder.Entity("MovieGenre", b =>
+                {
+                    b.HasOne("CinemaGo.Domain.Entities.Genre", null)
+                        .WithMany()
+                        .HasForeignKey("GenreId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("CinemaGo.Domain.Entities.Movie", null)
+                        .WithMany()
+                        .HasForeignKey("MovieId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("CinemaGo.Domain.Entities.Booking", b =>
                 {
                     b.Navigation("Ticket");
-                });
-
-            modelBuilder.Entity("CinemaGo.Domain.Entities.Genre", b =>
-                {
-                    b.Navigation("MovieGenres");
                 });
 
             modelBuilder.Entity("CinemaGo.Domain.Entities.Hall", b =>
@@ -517,8 +508,6 @@ namespace CinemaGo.Infrastructure.Migrations
 
             modelBuilder.Entity("CinemaGo.Domain.Entities.Movie", b =>
                 {
-                    b.Navigation("MovieGenres");
-
                     b.Navigation("Sessions");
                 });
 

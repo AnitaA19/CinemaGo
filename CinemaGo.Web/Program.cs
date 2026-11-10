@@ -229,7 +229,8 @@ namespace Cinema
                     policy.WithOrigins(
                             "https://localhost:7086",
                             "http://localhost:5005",
-                            "http://localhost:47219")
+                            "http://localhost:47219",
+                            "https://cinemaforgo.netlify.app")
                         .AllowAnyHeader()
                         .AllowAnyMethod()));
 

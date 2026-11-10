@@ -328,7 +328,11 @@ public sealed class CatalogServicesTests
 
         Assert.Equal(["Comedy", "Horror"], updated!.Genres.Select(g => g.Name));
         _db.Context.ChangeTracker.Clear();
-        var persisted = await _db.Context.MovieGenres.Where(mg => mg.MovieId == movie.Id).Select(mg => mg.GenreId).ToListAsync();
+        var persisted = await _db.Context.Movies
+            .Where(m => m.Id == movie.Id)
+            .SelectMany(m => m.Genres)
+            .Select(g => g.Id)
+            .ToListAsync();
         Assert.Equal(new[] { comedy, horror }.Order(), persisted.Order());
     }
 
@@ -341,7 +345,7 @@ public sealed class CatalogServicesTests
         var updated = await _movies.UpdateMovieAsync(movie.Id, new UpdateMovieDTO { Title = "M", DurationMinutes = 90, AgeRating = 12 }, Ct);
 
         Assert.Empty(updated!.Genres);
-        Assert.Empty(_db.Context.MovieGenres);
+        Assert.Empty(await _db.Context.Movies.SelectMany(m => m.Genres).ToListAsync());
     }
 
     [Fact]

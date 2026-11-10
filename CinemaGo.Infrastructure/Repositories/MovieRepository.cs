@@ -17,7 +17,7 @@ public class MovieRepository : IMovieRepository
     public async Task<ICollection<Movie>> GetAllMoviesAsync(CancellationToken cancellationToken)
     {
         return await _context.Movies
-            .Include(m => m.MovieGenres).ThenInclude(mg => mg.Genre)
+            .Include(m => m.Genres)
             .ToListAsync(cancellationToken);
     }
 
@@ -33,12 +33,12 @@ public async Task<(ICollection<Movie> Movies, int TotalCount)> GetMoviesPagedAsy
 
         if (genreId.HasValue)
         {
-            query = query.Where(m => m.MovieGenres.Any(mg => mg.GenreId == genreId.Value));
+            query = query.Where(m => m.Genres.Any(genre => genre.Id == genreId.Value));
         }
 
         var totalCount = await query.CountAsync(cancellationToken);
         var movies = await query
-            .Include(m => m.MovieGenres).ThenInclude(mg => mg.Genre)
+            .Include(m => m.Genres)
             .OrderBy(m => m.Title)
             .ThenBy(m => m.Id)
             .Skip((page - 1) * pageSize)
@@ -51,7 +51,7 @@ public async Task<(ICollection<Movie> Movies, int TotalCount)> GetMoviesPagedAsy
     public async Task<Movie?> GetMovieByIdAsync(int id, CancellationToken cancellationToken)
     {
         return await _context.Movies
-            .Include(m => m.MovieGenres).ThenInclude(mg => mg.Genre)
+            .Include(m => m.Genres)
             .FirstOrDefaultAsync(m => m.Id == id, cancellationToken);
     }
 

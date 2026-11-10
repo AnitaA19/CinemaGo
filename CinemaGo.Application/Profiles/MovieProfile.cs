@@ -10,9 +10,9 @@ public class MovieMapper : Profile
     public MovieMapper()
     {
         CreateMap<Movie, MovieDTO>()
-            .ForMember(d => d.Genres, o => o.MapFrom(m => m.MovieGenres
-                .OrderBy(mg => mg.Genre.Name)
-                .Select(mg => new GenreDTO { Id = mg.GenreId, Name = mg.Genre.Name })));
+            .ForMember(d => d.Genres, o => o.MapFrom(m => m.Genres
+                .OrderBy(g => g.Name)
+                .Select(g => new GenreDTO { Id = g.Id, Name = g.Name })));
         CreateMap<CreateMovieDTO, Movie>();
         CreateMap<UpdateMovieDTO, Movie>();
         CreateMap<Movie, UpdateMovieDTO>();

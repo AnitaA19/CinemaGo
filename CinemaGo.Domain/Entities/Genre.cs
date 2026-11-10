@@ -6,5 +6,5 @@ public class Genre
 
     public string Name { get; set; } = string.Empty;
 
-    public ICollection<MovieGenre> MovieGenres { get; set; } = new List<MovieGenre>();
+    public ICollection<Movie> Movies { get; set; } = new List<Movie>();
 }

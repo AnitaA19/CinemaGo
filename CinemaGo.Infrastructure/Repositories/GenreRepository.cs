@@ -20,7 +20,7 @@ public class GenreRepository : IGenreRepository
 
     public async Task<Genre?> GetGenreByIdAsync(int id, CancellationToken cancellationToken)
     {
-        return await _context.Genres.Include(g => g.MovieGenres).FirstOrDefaultAsync(g => g.Id == id, cancellationToken);
+        return await _context.Genres.Include(g => g.Movies).FirstOrDefaultAsync(g => g.Id == id, cancellationToken);
     }
 
     public async Task AddGenreAsync(Genre genre, CancellationToken cancellationToken)

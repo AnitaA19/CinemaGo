@@ -100,7 +100,7 @@ namespace CinemaGo.Application.Services.Implementations
             ValidateMovie(movie);
             foreach (var genre in await ResolveGenresAsync(createMovieDto.GenreIds, cancellationToken))
             {
-                movie.MovieGenres.Add(new MovieGenre { Genre = genre, GenreId = genre.Id });
+                movie.Genres.Add(genre);
             }
             await _movieRepository.AddMovieAsync(movie, cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -122,13 +122,13 @@ namespace CinemaGo.Application.Services.Implementations
 
             var genres = await ResolveGenresAsync(updateMovieDto.GenreIds, cancellationToken);
             var wantedIds = genres.Select(g => g.Id).ToHashSet();
-            foreach (var stale in existingMovie.MovieGenres.Where(mg => !wantedIds.Contains(mg.GenreId)).ToList())
+            foreach (var stale in existingMovie.Genres.Where(g => !wantedIds.Contains(g.Id)).ToList())
             {
-                existingMovie.MovieGenres.Remove(stale);
+                existingMovie.Genres.Remove(stale);
             }
-            foreach (var genre in genres.Where(g => existingMovie.MovieGenres.All(mg => mg.GenreId != g.Id)))
+            foreach (var genre in genres.Where(g => existingMovie.Genres.All(existing => existing.Id != g.Id)))
             {
-                existingMovie.MovieGenres.Add(new MovieGenre { MovieId = existingMovie.Id, Genre = genre, GenreId = genre.Id });
+                existingMovie.Genres.Add(genre);
             }
 
             _movieRepository.UpdateMovieAsync(existingMovie);

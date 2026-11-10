@@ -11,7 +11,6 @@ public class CinemaDbContext : DbContext
 
     public DbSet<Movie> Movies { get; set; }
     public DbSet<Genre> Genres { get; set; }
-    public DbSet<MovieGenre> MovieGenres { get; set; }
     public DbSet<Session> Sessions { get; set; }
     public DbSet<Hall> Halls { get; set; }
     public DbSet<Seat> Seats { get; set; }
@@ -51,20 +50,24 @@ public class CinemaDbContext : DbContext
             entity.HasIndex(g => g.Name).IsUnique();
         });
 
-        modelBuilder.Entity<MovieGenre>(entity =>
-        {
-            entity.HasKey(mg => new { mg.MovieId, mg.GenreId });
-
-            entity.HasOne(mg => mg.Movie)
-                .WithMany(m => m.MovieGenres)
-                .HasForeignKey(mg => mg.MovieId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            entity.HasOne(mg => mg.Genre)
-                .WithMany(g => g.MovieGenres)
-                .HasForeignKey(mg => mg.GenreId)
-                .OnDelete(DeleteBehavior.Cascade);
-        });
+        modelBuilder.Entity<Movie>()
+            .HasMany(movie => movie.Genres)
+            .WithMany(genre => genre.Movies)
+            .UsingEntity<Dictionary<string, object>>(
+                "MovieGenre",
+                genre => genre.HasOne<Genre>()
+                    .WithMany()
+                    .HasForeignKey("GenreId")
+                    .OnDelete(DeleteBehavior.Cascade),
+                movie => movie.HasOne<Movie>()
+                    .WithMany()
+                    .HasForeignKey("MovieId")
+                    .OnDelete(DeleteBehavior.Cascade),
+                join =>
+                {
+                    join.HasKey("MovieId", "GenreId");
+                    join.ToTable("MovieGenres");
+                });
 
         modelBuilder.Entity<Hall>(entity =>
         {

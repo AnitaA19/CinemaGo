@@ -12,7 +12,7 @@ public class Movie
 
     public string? PosterUrl { get; set; }
 
-    public ICollection<MovieGenre> MovieGenres { get; set; } = new List<MovieGenre>();
+    public ICollection<Genre> Genres { get; set; } = new List<Genre>();
 
     public ICollection<Session> Sessions { get; set; } = new List<Session>();
 }

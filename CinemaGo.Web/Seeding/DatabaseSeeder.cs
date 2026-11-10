@@ -53,7 +53,7 @@ public static class DatabaseSeeder
         foreach (var (title, duration, age, genreNames) in Movies)
         {
             var movie = await context.Movies
-                .Include(m => m.MovieGenres)
+                .Include(m => m.Genres)
                 .FirstOrDefaultAsync(m => m.Title == title, cancellationToken);
 
             if (movie is null)
@@ -62,7 +62,7 @@ public static class DatabaseSeeder
                 context.Movies.Add(movie);
                 foreach (var genreName in genreNames)
                 {
-                    movie.MovieGenres.Add(new MovieGenre { Genre = genresByName[genreName] });
+                    movie.Genres.Add(genresByName[genreName]);
                 }
             }
 

@@ -68,7 +68,7 @@ public class GenreService : IGenreService
             return false;
         }
 
-        if (genre.MovieGenres.Count > 0)
+        if (genre.Movies.Count > 0)
         {
             throw new ConflictException("A genre assigned to movies cannot be deleted.");
         }
